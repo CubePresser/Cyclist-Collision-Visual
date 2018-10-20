@@ -144,6 +144,7 @@ float	Xrot, Yrot;				// rotation angles in degrees
 
 GLuint	GroundList;
 GLuint	RoadList;
+GLuint	CarPanelList;
 
 //Blind spot angles (With respect to the Z axis in the negative direction)
 float	AngleIntersection;
@@ -179,7 +180,7 @@ void	Axes( float );
 void	HsvRgb( float[3], float [3] );
 
 void	DrawShadow();
-void	DrawBlinder(float);
+void	DrawBlinder(float, float);
 
 // main program:
 
@@ -304,7 +305,7 @@ Display( )
 
 	// set the eye position, look-at position, and up-vector:
 
-	gluLookAt( 0., 1., CarStart,     0., 1., 0.,     0., 1., 0. );
+	gluLookAt( 0., 0.8, CarStart,     0., 1., 0.,     0., 1., 0. );
 
 
 	// rotate the scene:
@@ -355,12 +356,18 @@ Display( )
 	glCallList(RoadList); //Car Road
 
 	glPushMatrix();
+	glTranslatef(0.f, 0.f, CarStart);
+	glCallList(CarPanelList); //Car top
+	glPopMatrix();
+
+	glPushMatrix();
 	glRotatef(AngleIntersection * RAD_TO_DEG, 0.f, 1.f, 0.f);
 	glCallList(RoadList); //Bike road
 	glPopMatrix();
 
 	//Draw the blinder
-	DrawBlinder(0.25f);
+	DrawBlinder(0.25f, 0.25f);
+	DrawBlinder(-0.25f, 0.25f);
 
 	//Draw blind spot shadow
 	DrawShadow();
@@ -633,6 +640,26 @@ InitLists( )
 	glEnd();
 	glEndList();
 
+	//CarPanel
+	CarPanelList = glGenLists(1);
+	glNewList(CarPanelList, GL_COMPILE);
+	glBegin(GL_TRIANGLE_STRIP);
+	glColor3f(0.f, 0.f, 0.f);
+	glVertex3f(0.25f, 1.0f, -0.5f);
+	glVertex3f(0.25f, 1.0f, 1.0f);
+	glVertex3f(-0.25f, 1.0f, -0.5f);
+	glVertex3f(-0.25f, 1.0f, 1.0f);
+	glEnd();
+
+	glBegin(GL_TRIANGLE_STRIP);
+	glColor3f(0.f, 0.f, 0.f);
+	glVertex3f(0.25f, 0.6f, -0.5f);
+	glVertex3f(0.25f, 0.6f, 0.8f);
+	glVertex3f(-0.25f, 0.6f, -0.5f);
+	glVertex3f(-0.25f, 0.6f, 0.8f);
+	glEnd();
+	glEndList();
+
 	//Axes
 	AxesList = glGenLists( 1 );
 	glNewList( AxesList, GL_COMPILE );
@@ -769,7 +796,7 @@ Reset( )
 	LeadingAngle = 19.4f * DEG_TO_RAD;
 	TrailingAngle = 27.1f * DEG_TO_RAD;
 
-	CarStart = 50.f;
+	CarStart = 10.f;
 	BikeStart = 0.0f;
 }
 
@@ -1030,19 +1057,17 @@ void DrawShadow()
 	glEnd();
 }
 
-void DrawBlinder(float scaleFactor)
+void DrawBlinder(float scaleFactorX, float scaleFactorZ)
 {
 	//Calculate some trig here to avoid repeat calculations 
-	float leadX = sin(LeadingAngle) * scaleFactor, leadZ = (-cos(LeadingAngle) * scaleFactor) + CarStart;
-	float trailX = sin(TrailingAngle) * scaleFactor, trailZ = (-cos(TrailingAngle) * scaleFactor) + CarStart;
-
-	
+	float leadX = sin(LeadingAngle) * scaleFactorX, leadZ = (-cos(LeadingAngle) * scaleFactorZ) + CarStart;
+	float trailX = sin(TrailingAngle) * scaleFactorX, trailZ = (-cos(TrailingAngle) * scaleFactorZ) + CarStart;
 
 	glColor3f(0.f, 0.f, 0.f);
 	glBegin(GL_TRIANGLE_STRIP);
 	glVertex3f(leadX, 0.f, leadZ);
-	glVertex3f(leadX, 10.f, leadZ);
+	glVertex3f(leadX, 1.5f, leadZ);
 	glVertex3f(trailX, 0.f, trailZ);
-	glVertex3f(trailX, 10.f, trailZ);
+	glVertex3f(trailX, 1.5f, trailZ);
 	glEnd();
 }
