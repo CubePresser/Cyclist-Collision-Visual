@@ -1,3 +1,5 @@
+//Each unit in this simulation is treated as 1 meter
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -136,15 +138,18 @@ const GLfloat FOGEND      = { 4. };
 int		ActiveButton;			// current button that is down
 GLuint	AxesList;				// list to hold the axes
 int		AxesOn;					// != 0 means to draw the axes
+int		ViewType = 0;			// 0 = Car view, 1 = Intersection view
 int		DebugOn;				// != 0 means to print debugging info
 int		MainWindow;				// window id for main graphics window
 float	Scale;					// scaling factor
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
 
+bool	Frozen;
+
 GLuint	GroundList;
 GLuint	RoadList;
-GLuint	CarPanelList;
+GLuint	BikeList;
 
 //Blind spot angles (With respect to the Z axis in the negative direction)
 float	AngleIntersection;
@@ -153,7 +158,19 @@ float	TrailingAngle;
 
 //Starting distances for objects from origin (Y = 1) in the positive Z direction
 GLfloat	CarStart;
+GLfloat CarDistance;
+GLfloat	CarSpeed;
 GLfloat BikeStart;
+GLfloat BikeDistance;
+GLfloat	BikeSpeed;
+
+GLfloat CarDistanceTravelled;
+GLfloat BikeDistanceTravelled;
+
+//Animation times
+int animate_start_time; //Log the time in which animation starts so simulation time is essentially starting at t=0
+int time_frozen;
+
 
 
 // function prototypes:
@@ -161,6 +178,7 @@ GLfloat BikeStart;
 void	Animate( );
 void	Display( );
 void	DoAxesMenu(int);
+void	DoViewMenu(int);
 void	DoDebugMenu( int );
 void	DoMainMenu( int );
 void	DoRasterString( float, float, float, char * );
@@ -180,7 +198,7 @@ void	Axes( float );
 void	HsvRgb( float[3], float [3] );
 
 void	DrawShadow();
-void	DrawBlinder(float, float);
+void	DrawCar(float);
 
 // main program:
 
@@ -238,11 +256,18 @@ main( int argc, char *argv[ ] )
 void
 Animate( )
 {
-	// put animation stuff in here -- change some global variables
-	// for Display( ) to find:
+	//Ensure that for each monitor, animation cycle is always 1000 milliseconds
+	float Time;
+	int ms = glutGet(GLUT_ELAPSED_TIME) - animate_start_time;	// milliseconds
+	Time = (float)ms / 1000.f;        // [ 0., 1. )
+
+	CarDistanceTravelled = (Time * CarSpeed);
+	CarDistance = CarStart - CarDistanceTravelled;
+
+	BikeDistanceTravelled = (Time * BikeSpeed);
+	BikeDistance = BikeStart - BikeDistanceTravelled;
 
 	// force a call to Display( ) next time it is convenient:
-
 	glutSetWindow( MainWindow );
 	glutPostRedisplay( );
 }
@@ -305,20 +330,24 @@ Display( )
 
 	// set the eye position, look-at position, and up-vector:
 
-	gluLookAt( 0., 0.8, CarStart,     0., 1., 0.,     0., 1., 0. );
+	if(!ViewType)
+		gluLookAt( 0., 1.6, CarDistance,     0., 1.6, -CarDistanceTravelled,     0., 1., 0. );
+	else
+	{
+		gluLookAt(0., 100, 100.,     0., 0., 0.,     0., 1., 0.);
+		// rotate the scene:
 
+		glRotatef( (GLfloat)Yrot, 0., 1., 0. );
+		glRotatef( (GLfloat)Xrot, 1., 0., 0. );
 
-	// rotate the scene:
+		// uniformly scale the scene:
 
-	glRotatef( (GLfloat)Yrot, 0., 1., 0. );
-	glRotatef( (GLfloat)Xrot, 1., 0., 0. );
+		if( Scale < MINSCALE )
+			Scale = MINSCALE;
+		glScalef( (GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale );
+	}
 
-
-	// uniformly scale the scene:
-
-	if( Scale < MINSCALE )
-		Scale = MINSCALE;
-	glScalef( (GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale );
+	
 
 	// set the fog parameters:
 
@@ -355,19 +384,24 @@ Display( )
 	glCallList(GroundList);
 	glCallList(RoadList); //Car Road
 
-	glPushMatrix();
-	glTranslatef(0.f, 0.f, CarStart);
-	glCallList(CarPanelList); //Car top
-	glPopMatrix();
-
+	//Draw bike road
 	glPushMatrix();
 	glRotatef(AngleIntersection * RAD_TO_DEG, 0.f, 1.f, 0.f);
 	glCallList(RoadList); //Bike road
 	glPopMatrix();
 
-	//Draw the blinder
-	DrawBlinder(0.25f, 0.25f);
-	DrawBlinder(-0.25f, 0.25f);
+	//Draw the Car
+	glPushMatrix();
+	glTranslatef(0, 0, -CarDistanceTravelled); //Move the car
+	DrawCar(2.195f);
+	glPopMatrix();
+
+	//Draw bike
+	glPushMatrix();
+	glRotatef(AngleIntersection * RAD_TO_DEG, 0.f, 1.f, 0.f);
+	glTranslatef(0, 0, BikeDistance);
+	glCallList(BikeList);
+	glPopMatrix();
 
 	//Draw blind spot shadow
 	DrawShadow();
@@ -407,6 +441,15 @@ DoAxesMenu( int id )
 
 	glutSetWindow( MainWindow );
 	glutPostRedisplay( );
+}
+
+void
+DoViewMenu(int id)
+{
+	ViewType = id;
+
+	glutSetWindow(MainWindow);
+	glutPostRedisplay();
 }
 
 void
@@ -506,12 +549,17 @@ InitMenus( )
 	glutAddMenuEntry( "Off",  0 );
 	glutAddMenuEntry( "On",   1 );
 
+	int viewmenu = glutCreateMenu(DoViewMenu);
+	glutAddMenuEntry("Car - Interior", 0);
+	glutAddMenuEntry("Intersection", 1);
+
 	int debugmenu = glutCreateMenu( DoDebugMenu );
 	glutAddMenuEntry( "Off",  0 );
 	glutAddMenuEntry( "On",   1 );
 
 	int mainmenu = glutCreateMenu( DoMainMenu );
 	glutAddSubMenu(   "Axes",          axesmenu);
+	glutAddSubMenu(   "View",          viewmenu);
 	glutAddMenuEntry( "Reset",         RESET );
 	glutAddSubMenu(   "Debug",         debugmenu);
 	glutAddMenuEntry( "Quit",          QUIT );
@@ -588,7 +636,7 @@ InitGraphics( )
 	glutTabletButtonFunc( NULL );
 	glutMenuStateFunc( NULL );
 	glutTimerFunc( -1, NULL, 0 );
-	glutIdleFunc( Animate );
+	glutIdleFunc( NULL );
 
 	// init glew (a window must be open to do this):
 
@@ -633,31 +681,31 @@ InitLists( )
 	glNewList(RoadList, GL_COMPILE);
 	glBegin(GL_TRIANGLE_STRIP);
 	glColor3f(.75f, .75f, .75f);
-	glVertex3f(1.f, 0.01f, 1000.f);
-	glVertex3f(1.f, 0.01f, -1000.f);
-	glVertex3f(-1.f, 0.01f, 1000.f);
-	glVertex3f(-1.f, 0.01f, -1000.f);
+	glVertex3f(2.f, 0.05f, 1000.f);
+	glVertex3f(2.f, 0.05f, -1000.f);
+	glVertex3f(-2.f, 0.05f, 1000.f);
+	glVertex3f(-2.f, 0.05f, -1000.f);
 	glEnd();
 	glEndList();
 
-	//CarPanel
-	CarPanelList = glGenLists(1);
-	glNewList(CarPanelList, GL_COMPILE);
-	glBegin(GL_TRIANGLE_STRIP);
-	glColor3f(0.f, 0.f, 0.f);
-	glVertex3f(0.25f, 1.0f, -0.5f);
-	glVertex3f(0.25f, 1.0f, 1.0f);
-	glVertex3f(-0.25f, 1.0f, -0.5f);
-	glVertex3f(-0.25f, 1.0f, 1.0f);
-	glEnd();
-
-	glBegin(GL_TRIANGLE_STRIP);
-	glColor3f(0.f, 0.f, 0.f);
-	glVertex3f(0.25f, 0.6f, -0.5f);
-	glVertex3f(0.25f, 0.6f, 0.8f);
-	glVertex3f(-0.25f, 0.6f, -0.5f);
-	glVertex3f(-0.25f, 0.6f, 0.8f);
-	glEnd();
+	//Bike
+	BikeList = glGenLists(1);
+	glNewList(BikeList, GL_COMPILE);
+		//Top
+		glBegin(GL_TRIANGLE_STRIP);
+		glVertex3f(0.25f, 1.f, 1.f);
+		glVertex3f(0.25f, 1.f, -1.f);
+		glVertex3f(-0.25f, 1.f, 1.f);
+		glVertex3f(-0.25f, 1.f, -1.f);
+		glEnd();
+		//Left
+		glBegin(GL_TRIANGLE_STRIP);
+		glVertex3f(-0.25f, 1.f, 1.f);
+		glVertex3f(-0.25f, 0.f, 1.f);
+		glVertex3f(-0.25f, 1.f, -1.f);
+		glVertex3f(-0.25f, 0.f, -1.f);
+		// TODO: FINISH MAKING THE BIKE SHAPE ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+		glEnd();
 	glEndList();
 
 	//Axes
@@ -680,11 +728,29 @@ Keyboard( unsigned char c, int x, int y )
 
 	switch( c )
 	{
+		case 'r':
+		case 'R':
+			DoMainMenu(RESET);
+			break;
 		case 'q':
 		case 'Q':
 		case ESCAPE:
 			DoMainMenu( QUIT );	// will not return here
 			break;				// happy compiler
+		case 'f':
+		case 'F':
+			Frozen = !Frozen;
+			if (Frozen)
+			{
+				glutIdleFunc(NULL);
+				time_frozen = glutGet(GLUT_ELAPSED_TIME) - animate_start_time;
+			}
+			else
+			{
+				glutIdleFunc(Animate);
+				animate_start_time = glutGet(GLUT_ELAPSED_TIME) - time_frozen;
+			}
+			break;
 
 		default:
 			fprintf( stderr, "Don't know what to do with keyboard hit: '%c' (0x%0x)\n", c, c );
@@ -796,8 +862,21 @@ Reset( )
 	LeadingAngle = 19.4f * DEG_TO_RAD;
 	TrailingAngle = 27.1f * DEG_TO_RAD;
 
-	CarStart = 10.f;
-	BikeStart = 0.0f;
+	CarStart = 100.f;
+	CarSpeed = 18.f;
+	BikeStart = 39.0f;
+	BikeSpeed = 7.0f;
+
+	CarDistance = CarStart;
+	CarDistanceTravelled = 0;
+
+	BikeDistance = BikeStart;
+	BikeDistanceTravelled = 0;
+
+	animate_start_time = glutGet(GLUT_ELAPSED_TIME);
+	time_frozen = 0;
+	Frozen = true;
+	glutIdleFunc(NULL);
 }
 
 
@@ -1038,7 +1117,7 @@ HsvRgb( float hsv[3], float rgb[3] )
 void DrawShadow()
 {
 	//CSED = Car Shadow Edge Distance
-	float CSED_Numerator = (CarStart * sin(AngleIntersection));
+	float CSED_Numerator = (CarDistance * sin(AngleIntersection));
 	float CSED_Trail =  CSED_Numerator / sin((M_PI - (TrailingAngle + AngleIntersection))); //Distance from trailing edge of blindspot shadow to car
 	float CSED_Lead = CSED_Numerator / sin((M_PI - (LeadingAngle + AngleIntersection))); //Distance from leading edge blindspot shadow to car
 
@@ -1051,23 +1130,84 @@ void DrawShadow()
 	//Draw shadow
 	glColor3f(1.f, 0.f, 0.f);
 	glBegin(GL_TRIANGLE_STRIP);
-	glVertex3f(0.f, .1f, CarStart);
-	glVertex3f(CSED_Lead * Opp_Lead, .1f, (CSED_Lead * Adj_Lead) + CarStart);
-	glVertex3f(CSED_Trail * Opp_Trail, .1f, (CSED_Trail * Adj_Trail) + CarStart);
+	glVertex3f(0.f, .1f, CarDistance);
+	glVertex3f(CSED_Lead * Opp_Lead, .1f, (CSED_Lead * Adj_Lead) + CarDistance);
+	glVertex3f(CSED_Trail * Opp_Trail, .1f, (CSED_Trail * Adj_Trail) + CarDistance);
 	glEnd();
 }
 
-void DrawBlinder(float scaleFactorX, float scaleFactorZ)
+void DrawCar(float scaleFactor)
 {
 	//Calculate some trig here to avoid repeat calculations 
-	float leadX = sin(LeadingAngle) * scaleFactorX, leadZ = (-cos(LeadingAngle) * scaleFactorZ) + CarStart;
-	float trailX = sin(TrailingAngle) * scaleFactorX, trailZ = (-cos(TrailingAngle) * scaleFactorZ) + CarStart;
+	float leadX = sin(LeadingAngle) * scaleFactor, leadZ = (-cos(LeadingAngle) * scaleFactor) + CarStart;
+	float trailX = sin(TrailingAngle) * scaleFactor, trailZ = (-cos(TrailingAngle) * scaleFactor) + CarStart;
 
+	float length = 4.f;
+	float height = 2.f;
+	float dash_height = height / 2.f;
+
+	//Draw the blinders
 	glColor3f(0.f, 0.f, 0.f);
 	glBegin(GL_TRIANGLE_STRIP);
 	glVertex3f(leadX, 0.f, leadZ);
-	glVertex3f(leadX, 1.5f, leadZ);
+	glVertex3f(leadX, height, leadZ);
 	glVertex3f(trailX, 0.f, trailZ);
-	glVertex3f(trailX, 1.5f, trailZ);
+	glVertex3f(trailX, height, trailZ);
 	glEnd();
+
+	glBegin(GL_TRIANGLE_STRIP);
+	glVertex3f(-leadX, 0.f, leadZ);
+	glVertex3f(-leadX, height, leadZ);
+	glVertex3f(-trailX, 0.f, trailZ);
+	glVertex3f(-trailX, height, trailZ);
+	glEnd();
+
+	//Roof of car
+	glBegin(GL_TRIANGLE_STRIP);
+	glVertex3f(trailX, height, leadZ);
+	glVertex3f(trailX, height, leadZ + length);
+	glVertex3f(-trailX, height, leadZ);
+	glVertex3f(-trailX, height, leadZ + length);
+	glEnd();
+
+	//Seats
+	glBegin(GL_TRIANGLE_STRIP);
+	glVertex3f(trailX, dash_height, leadZ);
+	glVertex3f(trailX, dash_height, leadZ + length);
+	glVertex3f(-trailX, dash_height, leadZ);
+	glVertex3f(-trailX, dash_height, leadZ + length);
+	glEnd();
+
+	//Bottom of car
+		//Right side
+		glBegin(GL_TRIANGLE_STRIP);
+		glVertex3f(trailX, 0.f, leadZ);
+		glVertex3f(trailX, dash_height, leadZ);
+		glVertex3f(trailX, 0.f, leadZ + length);
+		glVertex3f(trailX, dash_height, leadZ + length);
+		glEnd();
+
+		//Left Side
+		glBegin(GL_TRIANGLE_STRIP);
+		glVertex3f(-trailX, 0.f, leadZ);
+		glVertex3f(-trailX, dash_height, leadZ);
+		glVertex3f(-trailX, 0.f, leadZ + length);
+		glVertex3f(-trailX, dash_height, leadZ + length);
+		glEnd();
+
+		//Front
+		glBegin(GL_TRIANGLE_STRIP);
+		glVertex3f(trailX, 0.f, leadZ);
+		glVertex3f(trailX, dash_height, leadZ);
+		glVertex3f(-trailX, 0.f, leadZ);
+		glVertex3f(-trailX, dash_height, leadZ);
+		glEnd();
+
+		//Back
+		glBegin(GL_TRIANGLE_STRIP);
+		glVertex3f(trailX, 0.f, leadZ + length);
+		glVertex3f(trailX, height, leadZ + length);
+		glVertex3f(-trailX, 0.f, leadZ + length);
+		glVertex3f(-trailX, height, leadZ + length);
+		glEnd();
 }
