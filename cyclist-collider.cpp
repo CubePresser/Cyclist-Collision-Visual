@@ -1,4 +1,27 @@
-//Each unit in this simulation is treated as 1 meter
+/*******************************************************
+         JonesJonathan - Jonathan Jones - 2018
+
+------------- Cyclist Collision Visual ---------------
+This is an OpenGL graphical simulation of a Car-Bike intersection.
+The purpose of this simulation is to research how intersection angle, vehicle speeds
+and blindspots affect the driver's visual of cyclists on intersecting roads.
+
+For the purposes of this simulation, each unit (1.0f) is equivalent to 1 meter.
+
+Default sizes (W X H X L):
+Ground: 2000.0 x 2000.0 meters
+Road: 4.0 meters wide (Typical single lane)
+Car: 2.0 x 2.0 x 4.0 meters (Typical mid sized car)
+Bike: 0.5 x 1.0 x 2.0 meters (Typical bike)
+
+Default speeds:
+Car: 18 m/s (40 mph)(65 km/h)
+Bike: 7 m/s (17 mph)(25 km/h)
+
+Default starting distance:
+Car: 100m (328 ft)
+Bike: 39m (128 ft)
+*******************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,33 +41,27 @@
 #include "glut.h"
 
 // title of these windows:
-
 const char *WINDOWTITLE = { "Cyclist Collision - Jonathan Jones" };
 const char *GLUITITLE   = { "User Interface Window" };
 
 
 // what the glui package defines as true and false:
-
 const int GLUITRUE  = { true  };
 const int GLUIFALSE = { false };
 
 
 // the escape key:
-
 #define ESCAPE		0x1b
 
 //Degrees to radians conversion
-
 const float DEG_TO_RAD	= M_PI / 180.0;
 const float RAD_TO_DEG	= 180.0 / M_PI;
 
 // initial window size:
-
 const int INIT_WINDOW_SIZE = { 600 };
 
 // multiplication factors for input interaction:
 //  (these are known from previous experience)
-
 const float ANGFACT = { 1. };
 const float SCLFACT = { 0.005f };
 
@@ -53,18 +70,15 @@ const int DEPTHCUE = 0;
 
 
 // minimum allowable scale factor:
-
 const float MINSCALE = { 0.05f };
 
 
 // active mouse buttons (or them together):
-
 const int LEFT   = { 4 };
 const int MIDDLE = { 2 };
 const int RIGHT  = { 1 };
 
 // which button:
-
 enum ButtonVals
 {
 	RESET,
@@ -72,60 +86,13 @@ enum ButtonVals
 };
 
 // window background color (rgba):
-
 const GLfloat BACKCOLOR[ ] = { .258, .525, .956, 1. };
 
 
 // line width for the axes:
-
 const GLfloat AXES_WIDTH   = { 3. };
 
-
-// the color numbers:
-
-enum Colors
-{
-	RED,
-	YELLOW,
-	GREEN,
-	CYAN,
-	BLUE,
-	MAGENTA,
-	WHITE,
-	BLACK
-};
-
-char * ColorNames[ ] =
-{
-	"Red",
-	"Yellow",
-	"Green",
-	"Cyan",
-	"Blue",
-	"Magenta",
-	"White",
-	"Black"
-};
-
-
-// the color definitions:
-// this order must match the menu order
-
-const GLfloat Colors[ ][3] = 
-{
-	{ 1., 0., 0. },		// red
-	{ 1., 1., 0. },		// yellow
-	{ 0., 1., 0. },		// green
-	{ 0., 1., 1. },		// cyan
-	{ 0., 0., 1. },		// blue
-	{ 1., 0., 1. },		// magenta
-	{ 1., 1., 1. },		// white
-	{ 0., 0., 0. },		// black
-};
-
-
-// fog parameters:
-
+//Fog parameters
 const GLfloat FOGCOLOR[4] = { .0, .0, .0, 1. };
 const GLenum  FOGMODE     = { GL_LINEAR };
 const GLfloat FOGDENSITY  = { 0.30f };
@@ -133,8 +100,7 @@ const GLfloat FOGSTART    = { 1.5 };
 const GLfloat FOGEND      = { 4. };
 
 
-// non-constant global variables:
-
+//Non-constant global variables
 int		ActiveButton;			// current button that is down
 GLuint	AxesList;				// list to hold the axes
 int		AxesOn;					// != 0 means to draw the axes
@@ -156,7 +122,7 @@ float	AngleIntersection;
 float	LeadingAngle;
 float	TrailingAngle;
 
-//Starting distances for objects from origin (Y = 1) in the positive Z direction
+//Globals for the moving objects in the scene
 GLfloat	CarStart;
 GLfloat CarDistance;
 GLfloat	CarSpeed;
@@ -164,6 +130,7 @@ GLfloat BikeStart;
 GLfloat BikeDistance;
 GLfloat	BikeSpeed;
 
+//Distance travelled since the last frame
 GLfloat CarDistanceTravelled;
 GLfloat BikeDistanceTravelled;
 
@@ -174,7 +141,6 @@ int time_frozen;
 
 
 // function prototypes:
-
 void	Animate( );
 void	Display( );
 void	DoAxesMenu(int);
@@ -202,8 +168,7 @@ void	DrawCar(float);
 
 // main program:
 
-int
-main( int argc, char *argv[ ] )
+int main( int argc, char *argv[ ] )
 {
 	// turn on the glut package:
 	// (do this before checking argc and argv since it might
@@ -246,21 +211,14 @@ main( int argc, char *argv[ ] )
 }
 
 
-// this is where one would put code that is to be called
-// everytime the glut main loop has nothing to do
-//
-// this is typically where animation parameters are set
-//
-// do not call Display( ) from here -- let glutMainLoop( ) do it
-
-void
-Animate( )
+//Update distance information with respect to speed for the Car and Bike in the scene
+void Animate( )
 {
-	//Ensure that for each monitor, animation cycle is always 1000 milliseconds
 	float Time;
-	int ms = glutGet(GLUT_ELAPSED_TIME) - animate_start_time;	// milliseconds
-	Time = (float)ms / 1000.f;        // [ 0., 1. )
+	int ms = glutGet(GLUT_ELAPSED_TIME) - animate_start_time; //Get the total elapsed time and subtract from it the time since animation has started
+	Time = (float)ms / 1000.f;        //Get time in seconds
 
+	//Distance = Time * Speed
 	CarDistanceTravelled = (Time * CarSpeed);
 	CarDistance = CarStart - CarDistanceTravelled;
 
@@ -272,11 +230,14 @@ Animate( )
 	glutPostRedisplay( );
 }
 
+/*************************************************
+ * Function: 
+ * Description: 
+ * Returns: 
+ * **********************************************/
 
-// draw the complete scene:
-
-void
-Display( )
+//Draw the scene
+void Display( )
 {
 	if( DebugOn != 0 )
 	{
@@ -284,27 +245,20 @@ Display( )
 	}
 
 
-	// set which window we want to do the graphics into:
-
+	//Set window in which to draw graphics
 	glutSetWindow( MainWindow );
 
-
-	// erase the background:
-
+	//Flush the background contents
 	glDrawBuffer( GL_BACK );
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 	glEnable( GL_DEPTH_TEST );
-	//glDisable( GL_DEPTH_TEST );
-
 
 	// specify shading to be flat:
-
 	glShadeModel( GL_FLAT );
 
 
 	// set the viewport to a square centered in the window:
-
 	GLsizei vx = glutGet( GLUT_WINDOW_WIDTH );
 	GLsizei vy = glutGet( GLUT_WINDOW_HEIGHT );
 	GLsizei v = vx < vy ? vx : vy;			// minimum dimension
@@ -316,32 +270,28 @@ Display( )
 	// set the viewing volume:
 	// remember that the Z clipping  values are actually
 	// given as DISTANCES IN FRONT OF THE EYE
-
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity( );
 	gluPerspective( 90., 1.,	0.1, 1000. );
 
 
 	// place the objects into the scene:
-
 	glMatrixMode( GL_MODELVIEW );
 	glLoadIdentity( );
 
 
 	// set the eye position, look-at position, and up-vector:
-
 	if(!ViewType)
 		gluLookAt( 0., 1.6, CarDistance,     0., 1.6, -CarDistanceTravelled,     0., 1., 0. );
 	else
 	{
 		gluLookAt(0., 100, 100.,     0., 0., 0.,     0., 1., 0.);
-		// rotate the scene:
 
+		// rotate the scene:
 		glRotatef( (GLfloat)Yrot, 0., 1., 0. );
 		glRotatef( (GLfloat)Xrot, 1., 0., 0. );
 
 		// uniformly scale the scene:
-
 		if( Scale < MINSCALE )
 			Scale = MINSCALE;
 		glScalef( (GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale );
@@ -350,7 +300,6 @@ Display( )
 	
 
 	// set the fog parameters:
-
 	if(DEPTHCUE)
 	{
 		glFogi( GL_FOG_MODE, FOGMODE );
@@ -367,7 +316,6 @@ Display( )
 
 
 	// possibly draw the axes:
-
 	if( AxesOn != 0 )
 	{
 		glColor3f(1, 1, 1);
@@ -376,7 +324,6 @@ Display( )
 
 
 	// since we are using glScalef( ), be sure normals get unitized:
-
 	glEnable( GL_NORMALIZE );
 
 
@@ -414,7 +361,6 @@ Display( )
 	//
 	// the modelview matrix is reset to identity as we don't
 	// want to transform these coordinates
-
 	glDisable( GL_DEPTH_TEST );
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity( );
@@ -423,19 +369,16 @@ Display( )
 	glLoadIdentity( );
 
 	// swap the double-buffered framebuffers:
-
 	glutSwapBuffers( );
 
 
 	// be sure the graphics buffer has been sent:
 	// note: be sure to use glFlush( ) here, not glFinish( ) !
-
 	glFlush( );
 }
 
 
-void
-DoAxesMenu( int id )
+void DoAxesMenu( int id )
 {
 	AxesOn = id;
 
@@ -443,8 +386,7 @@ DoAxesMenu( int id )
 	glutPostRedisplay( );
 }
 
-void
-DoViewMenu(int id)
+void DoViewMenu(int id)
 {
 	ViewType = id;
 
@@ -452,8 +394,7 @@ DoViewMenu(int id)
 	glutPostRedisplay();
 }
 
-void
-DoDebugMenu( int id )
+void DoDebugMenu( int id )
 {
 	DebugOn = id;
 
@@ -462,9 +403,7 @@ DoDebugMenu( int id )
 }
 
 // main menu callback:
-
-void
-DoMainMenu( int id )
+void DoMainMenu( int id )
 {
 	switch( id )
 	{
@@ -491,9 +430,7 @@ DoMainMenu( int id )
 }
 
 // use glut to display a string of characters using a raster font:
-
-void
-DoRasterString( float x, float y, float z, char *s )
+void DoRasterString( float x, float y, float z, char *s )
 {
 	glRasterPos3f( (GLfloat)x, (GLfloat)y, (GLfloat)z );
 
@@ -506,9 +443,7 @@ DoRasterString( float x, float y, float z, char *s )
 
 
 // use glut to display a string of characters using a stroke font:
-
-void
-DoStrokeString( float x, float y, float z, float ht, char *s )
+void DoStrokeString( float x, float y, float z, float ht, char *s )
 {
 	glPushMatrix( );
 		glTranslatef( (GLfloat)x, (GLfloat)y, (GLfloat)z );
@@ -524,24 +459,18 @@ DoStrokeString( float x, float y, float z, float ht, char *s )
 
 
 // return the number of seconds since the start of the program:
-
-float
-ElapsedSeconds( )
+float ElapsedSeconds( )
 {
 	// get # of milliseconds since the start of the program:
-
 	int ms = glutGet( GLUT_ELAPSED_TIME );
 
 	// convert it to seconds:
-
 	return (float)ms / 1000.f;
 }
 
 
 // initialize the glui window:
-
-void
-InitMenus( )
+void InitMenus( )
 {
 	glutSetWindow( MainWindow );
 
@@ -564,8 +493,7 @@ InitMenus( )
 	glutAddSubMenu(   "Debug",         debugmenu);
 	glutAddMenuEntry( "Quit",          QUIT );
 
-// attach the pop-up menu to the right mouse button:
-
+	// attach the pop-up menu to the right mouse button:
 	glutAttachMenu( GLUT_RIGHT_BUTTON );
 }
 
@@ -573,27 +501,21 @@ InitMenus( )
 
 // initialize the glut and OpenGL libraries:
 //	also setup display lists and callback functions
-
-void
-InitGraphics( )
+void InitGraphics( )
 {
 	// request the display modes:
 	// ask for red-green-blue-alpha color, double-buffering, and z-buffering:
-
 	glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH );
 
 	// set the initial window configuration:
-
 	glutInitWindowPosition( 0, 0 );
 	glutInitWindowSize( INIT_WINDOW_SIZE * 2, INIT_WINDOW_SIZE );
 
 	// open the window and set its title:
-
 	MainWindow = glutCreateWindow( WINDOWTITLE );
 	glutSetWindowTitle( WINDOWTITLE );
 
 	// set the framebuffer clear values:
-
 	glClearColor( BACKCOLOR[0], BACKCOLOR[1], BACKCOLOR[2], BACKCOLOR[3] );
 
 	// setup the callback functions:
@@ -639,17 +561,16 @@ InitGraphics( )
 	glutIdleFunc( NULL );
 
 	// init glew (a window must be open to do this):
-
-#ifdef WIN32
-	GLenum err = glewInit( );
-	if( err != GLEW_OK )
-	{
-		fprintf( stderr, "glewInit Error\n" );
-	}
-	else
-		fprintf( stderr, "GLEW initialized OK\n" );
-	fprintf( stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
-#endif
+	#ifdef WIN32
+		GLenum err = glewInit( );
+		if( err != GLEW_OK )
+		{
+			fprintf( stderr, "glewInit Error\n" );
+		}
+		else
+			fprintf( stderr, "GLEW initialized OK\n" );
+		fprintf( stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
+	#endif
 
 }
 
@@ -658,9 +579,7 @@ InitGraphics( )
 // (a display list is a way to store opengl commands in
 //  memory so that they can be played back efficiently at a later time
 //  with a call to glCallList( )
-
-void
-InitLists( )
+void InitLists( )
 {
 	glutSetWindow( MainWindow );
 
@@ -719,9 +638,7 @@ InitLists( )
 
 
 // the keyboard callback:
-
-void
-Keyboard( unsigned char c, int x, int y )
+void Keyboard( unsigned char c, int x, int y )
 {
 	if( DebugOn != 0 )
 		fprintf( stderr, "Keyboard: '%c' (0x%0x)\n", c, c );
@@ -757,16 +674,13 @@ Keyboard( unsigned char c, int x, int y )
 	}
 
 	// force a call to Display( ):
-
 	glutSetWindow( MainWindow );
 	glutPostRedisplay( );
 }
 
 
 // called when the mouse button transitions down or up:
-
-void
-MouseButton( int button, int state, int x, int y )
+void MouseButton( int button, int state, int x, int y )
 {
 	int b = 0;			// LEFT, MIDDLE, or RIGHT
 
@@ -775,7 +689,6 @@ MouseButton( int button, int state, int x, int y )
 
 	
 	// get the proper button bit mask:
-
 	switch( button )
 	{
 		case GLUT_LEFT_BUTTON:
@@ -794,7 +707,6 @@ MouseButton( int button, int state, int x, int y )
 
 
 	// button down sets the bit, up clears the bit:
-
 	if( state == GLUT_DOWN )
 	{
 		Xmouse = x;
@@ -809,9 +721,7 @@ MouseButton( int button, int state, int x, int y )
 
 
 // called when the mouse moves while a button is down:
-
-void
-MouseMotion( int x, int y )
+void MouseMotion( int x, int y )
 {
 	if( DebugOn != 0 )
 		fprintf( stderr, "MouseMotion: %d, %d\n", x, y );
@@ -832,7 +742,6 @@ MouseMotion( int x, int y )
 		Scale += SCLFACT * (float) ( dx - dy );
 
 		// keep object from turning inside-out or disappearing:
-
 		if( Scale < MINSCALE )
 			Scale = MINSCALE;
 	}
@@ -844,13 +753,9 @@ MouseMotion( int x, int y )
 	glutPostRedisplay( );
 }
 
-
-// reset the transformations and the colors:
-// this only sets the global variables --
-// the glut main loop is responsible for redrawing the scene
-
-void
-Reset( )
+//Assign global variables their default values
+// - Also used to "Reset" the scene
+void Reset( )
 {
 	ActiveButton = 0;
 	AxesOn = 0;
@@ -881,25 +786,20 @@ Reset( )
 
 
 // called when user resizes the window:
-
-void
-Resize( int width, int height )
+void Resize( int width, int height )
 {
 	if( DebugOn != 0 )
 		fprintf( stderr, "ReSize: %d, %d\n", width, height );
 
 	// don't really need to do anything since window size is
 	// checked each time in Display( ):
-
 	glutSetWindow( MainWindow );
 	glutPostRedisplay( );
 }
 
 
 // handle a change to the window's visibility:
-
-void
-Visibility ( int state )
+void Visibility ( int state )
 {
 	if( DebugOn != 0 )
 		fprintf( stderr, "Visibility: %d\n", state );
@@ -968,9 +868,7 @@ const float BASEFRAC = 1.10f;
 
 //	Draw a set of 3D axes:
 //	(length is the axis length in world coordinates)
-
-void
-Axes( float length )
+void Axes( float length )
 {
 	glBegin( GL_LINE_STRIP );
 		glVertex3f( length, 0., 0. );
@@ -1041,12 +939,9 @@ Axes( float length )
 // 0.  <= h  <=  360.
 // when this returns, call:
 //		glColor3fv( rgb );
-
-void
-HsvRgb( float hsv[3], float rgb[3] )
+void HsvRgb( float hsv[3], float rgb[3] )
 {
 	// guarantee valid input:
-
 	float h = hsv[0] / 60.f;
 	while( h >= 6. )	h -= 6.;
 	while( h <  0. ) 	h += 6.;
@@ -1064,7 +959,6 @@ HsvRgb( float hsv[3], float rgb[3] )
 		v = 1.;
 
 	// if sat==0, then is a gray:
-
 	if( s == 0.0 )
 	{
 		rgb[0] = rgb[1] = rgb[2] = v;
@@ -1072,7 +966,6 @@ HsvRgb( float hsv[3], float rgb[3] )
 	}
 
 	// get an rgb from the hue itself:
-	
 	float i = floor( h );
 	float f = h - i;
 	float p = v * ( 1.f - s );
@@ -1136,6 +1029,7 @@ void DrawShadow()
 	glEnd();
 }
 
+//Draw the car and its blinders
 void DrawCar(float scaleFactor)
 {
 	//Calculate some trig here to avoid repeat calculations 
