@@ -39,6 +39,15 @@ Bike: 39m (128 ft)
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include "glut.h"
+#include "glui.h"
+
+//Resolve external dependency issues with the old glui library
+FILE _iob[] = { *stdin, *stdout, *stderr };
+
+extern "C" FILE * __cdecl __iob_func(void)
+{
+	return _iob;
+}
 
 // title of these windows:
 const char *WINDOWTITLE = { "Cyclist Collision - Jonathan Jones" };
@@ -107,7 +116,7 @@ int		AxesOn;					// != 0 means to draw the axes
 int		ViewType = 0;			// 0 = Car view, 1 = Intersection view
 int		DebugOn;				// != 0 means to print debugging info
 int		MainWindow;				// window id for main graphics window
-float	Scale;					// scaling factor
+float	Scale, Scale2;					// scaling factor
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
 
@@ -138,10 +147,16 @@ GLfloat BikeDistanceTravelled;
 int animate_start_time; //Log the time in which animation starts so simulation time is essentially starting at t=0
 int time_frozen;
 
+//GLUI globals
+GLUI *	Glui;				// instance of glui window
+int	GluiWindow;				// the glut id for the glui window
+GLfloat	RotMatrix[4][4];	// set by glui rotation widget
+float	TransXYZ[3];		// set by glui translation widgets
 
 
 // function prototypes:
 void	Animate( );
+void	Buttons( int );
 void	Display( );
 void	DoAxesMenu(int);
 void	DoViewMenu(int);
@@ -150,6 +165,7 @@ void	DoMainMenu( int );
 void	DoRasterString( float, float, float, char * );
 void	DoStrokeString( float, float, float, float, char * );
 float	ElapsedSeconds( );
+void	InitGlui();
 void	InitGraphics( );
 void	InitLists( );
 void	InitMenus( );
@@ -165,6 +181,7 @@ void	HsvRgb( float[3], float [3] );
 
 void	DrawShadow();
 void	DrawCar(float);
+
 
 // main program:
 
@@ -195,7 +212,8 @@ int main( int argc, char *argv[ ] )
 
 	// setup all the user interface stuff:
 
-	InitMenus( );
+	//InitMenus( );
+	InitGlui();
 
 
 	// draw the scene once and wait for some interaction:
@@ -230,6 +248,37 @@ void Animate( )
 	glutPostRedisplay( );
 }
 
+//Glui buttons callback:
+void Buttons(int id)
+{
+	switch (id)
+	{
+	case RESET:
+		Reset();
+		Glui->sync_live();
+		glutSetWindow(MainWindow);
+		glutPostRedisplay();
+		break;
+
+	case QUIT:
+		// gracefully close the glui window:
+		// gracefully close out the graphics:
+		// gracefully close the graphics window:
+		// gracefully exit the program:
+		Glui->close();
+		glutSetWindow(MainWindow);
+		glFinish();
+		glutDestroyWindow(MainWindow);
+		exit(0);
+		break;
+
+	default:
+		fprintf(stderr, "Don't know what to do with Button ID %d\n", id);
+	}
+
+}
+
+
 /*************************************************
  * Function: 
  * Description: 
@@ -254,7 +303,7 @@ void Display( )
 
 	glEnable( GL_DEPTH_TEST );
 
-	// specify shading to be flat:
+	//Specify shading to be flat:
 	glShadeModel( GL_FLAT );
 
 
@@ -280,40 +329,25 @@ void Display( )
 	glLoadIdentity( );
 
 
-	// set the eye position, look-at position, and up-vector:
-	if(!ViewType)
-		gluLookAt( 0., 1.6, CarDistance,     0., 1.6, -CarDistanceTravelled,     0., 1., 0. );
-	else
+	//Check view type
+	if (!ViewType) //Car interior
+	{
+		gluLookAt(0., 1.6, CarDistance, 0., 1.6, -CarDistanceTravelled, 0., 1., 0.); //Eye is positioned at the car looking out the front
+	}
+	else //Intersection
 	{
 		gluLookAt(0., 100, 100.,     0., 0., 0.,     0., 1., 0.);
 
-		// rotate the scene:
+		//Rotation is wacky, how to rotate around Z axis too??
+		//Rotate the scene based upon the mouse movement
 		glRotatef( (GLfloat)Yrot, 0., 1., 0. );
 		glRotatef( (GLfloat)Xrot, 1., 0., 0. );
 
-		// uniformly scale the scene:
+		//Uniformly scale the scene based upon the mouse movement
 		if( Scale < MINSCALE )
 			Scale = MINSCALE;
 		glScalef( (GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale );
 	}
-
-	
-
-	// set the fog parameters:
-	if(DEPTHCUE)
-	{
-		glFogi( GL_FOG_MODE, FOGMODE );
-		glFogfv( GL_FOG_COLOR, FOGCOLOR );
-		glFogf( GL_FOG_DENSITY, FOGDENSITY );
-		glFogf( GL_FOG_START, FOGSTART );
-		glFogf( GL_FOG_END, FOGEND );
-		glEnable( GL_FOG );
-	}
-	else
-	{
-		glDisable( GL_FOG );
-	}
-
 
 	// possibly draw the axes:
 	if( AxesOn != 0 )
@@ -353,18 +387,13 @@ void Display( )
 	//Draw blind spot shadow
 	DrawShadow();
 
-	//
-	// the projection matrix is reset to define a scene whose
-	// world coordinate system goes from 0-100 in each axis
-	//
-	// this is called "percent units", and is just a convenience
-	//
-	// the modelview matrix is reset to identity as we don't
-	// want to transform these coordinates
+	//Reset projection matrix and set world coordinates 0-100
 	glDisable( GL_DEPTH_TEST );
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity( );
 	gluOrtho2D( 0., 100.,     0., 100. );
+
+	//Reset modelview matrix
 	glMatrixMode( GL_MODELVIEW );
 	glLoadIdentity( );
 
@@ -497,6 +526,72 @@ void InitMenus( )
 	glutAttachMenu( GLUT_RIGHT_BUTTON );
 }
 
+//
+// Initialize the glui window:
+//
+void InitGlui(void)
+{
+	GLUI_Panel *panel;
+	GLUI_RadioGroup *group;
+	GLUI_Rotation *rot;
+	GLUI_Translation *trans, *scale;
+
+
+	// setup the glui window:
+
+	glutInitWindowPosition(INIT_WINDOW_SIZE + 50, 0);
+
+	//DEBUG NOTES:
+	// Glui is not null and has a good address, however the calls towards it are accessing bad areas of memory
+	Glui = GLUI_Master.create_glui((char *)GLUITITLE);
+
+	Glui->add_statictext((char *)GLUITITLE);
+	
+	Glui->add_separator();
+
+	Glui->add_checkbox("Axes", &AxesOn);
+
+	panel = Glui->add_panel("Object Transformation");
+
+	rot = Glui->add_rotation_to_panel(panel, "Rotation", (float *)RotMatrix);
+
+	// allow the object to be spun via the glui rotation widget:
+
+	rot->set_spin(1.0);
+
+	Glui->add_column_to_panel(panel, GLUIFALSE);
+	scale = Glui->add_translation_to_panel(panel, "Scale", GLUI_TRANSLATION_Y, &Scale2);
+	scale->set_speed(0.005f);
+
+	Glui->add_column_to_panel(panel, GLUIFALSE);
+	trans = Glui->add_translation_to_panel(panel, "Trans XY", GLUI_TRANSLATION_XY, &TransXYZ[0]);
+	trans->set_speed(0.05f);
+
+	Glui->add_column_to_panel(panel, GLUIFALSE);
+	trans = Glui->add_translation_to_panel(panel, "Trans Z", GLUI_TRANSLATION_Z, &TransXYZ[2]);
+	trans->set_speed(0.05f);
+
+	Glui->add_checkbox("Debug", &DebugOn);
+
+
+	panel = Glui->add_panel("", GLUIFALSE);
+
+	Glui->add_button_to_panel(panel, "Reset", RESET, (GLUI_Update_CB)Buttons);
+
+	Glui->add_column_to_panel(panel, GLUIFALSE);
+
+	Glui->add_button_to_panel(panel, "Quit", QUIT, (GLUI_Update_CB)Buttons);
+
+
+	// tell glui what graphics window it needs to post a redisplay to:
+
+	Glui->set_main_gfx_window(MainWindow);
+
+
+	// set the graphics window's idle function if needed:
+	
+	GLUI_Master.set_glutIdleFunc(NULL);
+}
 
 
 // initialize the glut and OpenGL libraries:
@@ -558,7 +653,7 @@ void InitGraphics( )
 	glutTabletButtonFunc( NULL );
 	glutMenuStateFunc( NULL );
 	glutTimerFunc( -1, NULL, 0 );
-	glutIdleFunc( NULL );
+	//glutIdleFunc( NULL );
 
 	// init glew (a window must be open to do this):
 	#ifdef WIN32
@@ -673,6 +768,9 @@ void Keyboard( unsigned char c, int x, int y )
 			fprintf( stderr, "Don't know what to do with keyboard hit: '%c' (0x%0x)\n", c, c );
 	}
 
+	// synchronize the GLUI display with the variables:
+	Glui->sync_live();
+
 	// force a call to Display( ):
 	glutSetWindow( MainWindow );
 	glutPostRedisplay( );
@@ -758,8 +856,8 @@ void MouseMotion( int x, int y )
 void Reset( )
 {
 	ActiveButton = 0;
-	AxesOn = 0;
-	DebugOn = 0;
+	AxesOn = GLUIFALSE;
+	DebugOn = GLUIFALSE;
 	Scale  = 1.0;
 	Xrot = Yrot = 0.;
 
@@ -1014,7 +1112,7 @@ void DrawShadow()
 	float CSED_Trail =  CSED_Numerator / sin((M_PI - (TrailingAngle + AngleIntersection))); //Distance from trailing edge of blindspot shadow to car
 	float CSED_Lead = CSED_Numerator / sin((M_PI - (LeadingAngle + AngleIntersection))); //Distance from leading edge blindspot shadow to car
 
-	//Getting some trig functions calculated so they aren't repeated unnecessarily in the following operations
+	//Cleaning things up so its easier to read the next set of operations
 	float Opp_Lead = sin(LeadingAngle);
 	float Opp_Trail = sin(TrailingAngle);
 	float Adj_Lead = -cos(LeadingAngle);
