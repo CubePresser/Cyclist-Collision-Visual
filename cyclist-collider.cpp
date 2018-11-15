@@ -41,16 +41,6 @@ Bike: 39m (128 ft)
 #include "freeglut.h"
 #include "glui.h"
 
-/*
-//Resolve external dependency issues with the old glui library
-FILE _iob[] = { *stdin, *stdout, *stderr };
-
-extern "C" FILE * __cdecl __iob_func(void)
-{
-	return _iob;
-}
-*/
-
 // title of these windows:
 const char *WINDOWTITLE = { "Cyclist Collision - Jonathan Jones" };
 const char *GLUITITLE   = { "User Interface Window" };
@@ -163,6 +153,8 @@ GLUI *	Glui;				// instance of glui window
 int	GluiWindow;				// the glut id for the glui window
 GLfloat	RotMatrix[4][4];	// set by glui rotation widget
 float	TransXYZ[3];		// set by glui translation widgets
+bool	play;
+float	Time;
 
 
 // function prototypes:
@@ -243,16 +235,19 @@ int main( int argc, char *argv[ ] )
 //Update distance information with respect to speed for the Car and Bike in the scene
 void Animate( )
 {
-	float Time;
-	int ms = glutGet(GLUT_ELAPSED_TIME) - animate_start_time; //Get the total elapsed time and subtract from it the time since animation has started
-	Time = (float)ms / 1000.f;        //Get time in seconds
+	if (play)
+	{
+		float seconds = ((float)(glutGet(GLUT_ELAPSED_TIME) - animate_start_time) / 1000.f);
+		float dt = seconds - Time;
+		Time = seconds;
 
-	//Distance = Time * Speed
-	CarDistanceTravelled = (Time * CarSpeed);
-	CarDistance = CarStart - CarDistanceTravelled;
+		//Distance += DeltaTime * Speed
+		CarDistanceTravelled += (dt * CarSpeed);
+		CarDistance = CarStart - CarDistanceTravelled;
 
-	BikeDistanceTravelled = (Time * BikeSpeed);
-	BikeDistance = BikeStart - BikeDistanceTravelled;
+		BikeDistanceTravelled += (dt * BikeSpeed);
+		BikeDistance = BikeStart - BikeDistanceTravelled;
+	}
 
 	// force a call to Display( ) next time it is convenient:
 	glutSetWindow( MainWindow );
@@ -265,22 +260,20 @@ Buttons(int id)
 	switch (id)
 	{
 	case PLAY:
+		play = !play;
 		Frozen = !Frozen;
 		if (Frozen)
 		{
-			GLUI_Master.set_glutIdleFunc(NULL);
 			time_frozen = glutGet(GLUT_ELAPSED_TIME) - animate_start_time;
 		}
 		else
 		{
-			GLUI_Master.set_glutIdleFunc(Animate);
 			animate_start_time = glutGet(GLUT_ELAPSED_TIME) - time_frozen;
 		}
 		break;
 
 	case RESET:
 		Reset();
-		GLUI_Master.set_glutIdleFunc(NULL);
 		Glui->sync_live();
 		glutSetWindow(MainWindow);
 		glutPostRedisplay();
@@ -631,7 +624,7 @@ InitGlui(void)
 
 	// set the graphics window's idle function:
 
-	GLUI_Master.set_glutIdleFunc(NULL);
+	GLUI_Master.set_glutIdleFunc(Animate);
 }
 
 /*
@@ -915,6 +908,7 @@ void MouseMotion( int x, int y )
 // - Also used to "Reset" the scene
 void Reset( )
 {
+	Time = 0.f;
 	ActiveButton = 0;
 	AxesOn = GLUIFALSE;
 	DebugOn = GLUIFALSE;
@@ -936,10 +930,11 @@ void Reset( )
 	BikeDistance = BikeStart;
 	BikeDistanceTravelled = 0;
 
+	play = false;
+
 	animate_start_time = glutGet(GLUT_ELAPSED_TIME);
 	time_frozen = 0;
 	Frozen = true;
-	glutIdleFunc(NULL);
 }
 
 
