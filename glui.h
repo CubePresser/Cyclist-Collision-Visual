@@ -15,7 +15,7 @@
   program is -not- in the public domain.
 
 *****************************************************************************/
-#define _CRT_SECURE_NO_DEPRECATE	1
+
 
 #ifndef _GLUI_H_
 #define _GLUI_H_
@@ -248,8 +248,8 @@ class GLUI_Rollout;
 #define GLUI_EDITTEXT_FLOAT            3
 #define GLUI_SPINNER_INT               GLUI_EDITTEXT_INT
 #define GLUI_SPINNER_FLOAT             GLUI_EDITTEXT_FLOAT
-#define GLUI_HSLIDER_INT               GLUI_LIVE_INT
-#define GLUI_HSLIDER_FLOAT             GLUI_LIVE_FLOAT
+#define GLUI_HSLIDER_INT               GLUI_EDITTEXT_INT
+#define GLUI_HSLIDER_FLOAT             GLUI_EDITTEXT_FLOAT
 
 
 
@@ -302,8 +302,8 @@ public:
     parent_node= child_head = child_tail = next_sibling = prev_sibling = NULL;
   }; 
 
-  friend class GLUI_Rollout;
-  friend class GLUI_Main;
+  friend GLUI_Rollout;
+  friend GLUI_Main;
 };
 
 
@@ -568,11 +568,11 @@ protected:
 
   /********** Friend classes *************/
 
-  friend class GLUI_Control;
-  friend class GLUI_Rotation;
-  friend class GLUI_Translation;
-  friend class GLUI;
-  friend class GLUI_Master_Object;
+  friend GLUI_Control;
+  friend GLUI_Rotation;
+  friend GLUI_Translation;
+  friend GLUI;
+  friend GLUI_Master_Object;
 
 
   /********** Misc functions *************/
@@ -1502,8 +1502,6 @@ public:
     y_off_bot    = 0;
     can_activate = true;
     state        = GLUI_HSLIDER_STATE_NONE;
-    // MJB
-    live_type      = GLUI_LIVE_NONE;
     callback_count = 0;
     first_callback = true;
     bneeds_idle = 0;

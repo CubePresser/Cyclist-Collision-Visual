@@ -38,9 +38,10 @@ Bike: 39m (128 ft)
 
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include "glut.h"
+#include "freeglut.h"
 #include "glui.h"
 
+/*
 //Resolve external dependency issues with the old glui library
 FILE _iob[] = { *stdin, *stdout, *stderr };
 
@@ -48,6 +49,7 @@ extern "C" FILE * __cdecl __iob_func(void)
 {
 	return _iob;
 }
+*/
 
 // title of these windows:
 const char *WINDOWTITLE = { "Cyclist Collision - Jonathan Jones" };
@@ -74,6 +76,14 @@ const int INIT_WINDOW_SIZE = { 600 };
 const float ANGFACT = { 1. };
 const float SCLFACT = { 0.005f };
 
+// able to use the left mouse for either rotation or scaling,
+// in case have only a 2-button mouse:
+enum LeftButton
+{
+	ROTATE,
+	SCALE
+};
+
 //Depth Cue
 const int DEPTHCUE = 0;
 
@@ -90,6 +100,7 @@ const int RIGHT  = { 1 };
 // which button:
 enum ButtonVals
 {
+	PLAY,
 	RESET,
 	QUIT
 };
@@ -116,7 +127,7 @@ int		AxesOn;					// != 0 means to draw the axes
 int		ViewType = 0;			// 0 = Car view, 1 = Intersection view
 int		DebugOn;				// != 0 means to print debugging info
 int		MainWindow;				// window id for main graphics window
-float	Scale, Scale2;					// scaling factor
+float	Scale, Scale2;			// scaling factors
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
 
@@ -168,7 +179,7 @@ float	ElapsedSeconds( );
 void	InitGlui();
 void	InitGraphics( );
 void	InitLists( );
-void	InitMenus( );
+//void	InitMenus( );
 void	Keyboard( unsigned char, int, int );
 void	MouseButton( int, int, int, int );
 void	MouseMotion( int, int );
@@ -248,13 +259,28 @@ void Animate( )
 	glutPostRedisplay( );
 }
 
-//Glui buttons callback:
-void Buttons(int id)
+void
+Buttons(int id)
 {
 	switch (id)
 	{
+	case PLAY:
+		Frozen = !Frozen;
+		if (Frozen)
+		{
+			GLUI_Master.set_glutIdleFunc(NULL);
+			time_frozen = glutGet(GLUT_ELAPSED_TIME) - animate_start_time;
+		}
+		else
+		{
+			GLUI_Master.set_glutIdleFunc(Animate);
+			animate_start_time = glutGet(GLUT_ELAPSED_TIME) - time_frozen;
+		}
+		break;
+
 	case RESET:
 		Reset();
+		GLUI_Master.set_glutIdleFunc(NULL);
 		Glui->sync_live();
 		glutSetWindow(MainWindow);
 		glutPostRedisplay();
@@ -265,6 +291,7 @@ void Buttons(int id)
 		// gracefully close out the graphics:
 		// gracefully close the graphics window:
 		// gracefully exit the program:
+
 		Glui->close();
 		glutSetWindow(MainWindow);
 		glFinish();
@@ -497,7 +524,117 @@ float ElapsedSeconds( )
 	return (float)ms / 1000.f;
 }
 
+void
+InitGlui(void)
+{
+	GLUI_Panel *panel;
+	GLUI_Translation *trans, *scale;
 
+	// setup the glui window:
+
+	glutInitWindowPosition(INIT_WINDOW_SIZE + 50, 0);
+	Glui = GLUI_Master.create_glui((char *)GLUITITLE);
+
+
+	Glui->add_statictext((char *)GLUITITLE);
+	Glui->add_separator();
+
+	//Axes
+	Glui->add_checkbox( "Axes", &AxesOn );
+
+	//View
+	Glui->add_checkbox("TopDown", &ViewType);
+
+	//Angle of intersection
+	Glui->add_statictext("Angle of Intersection");
+	GLUI_HSlider *slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &AngleIntersection);
+	slider->set_float_limits(0., 2*M_PI);
+	slider->set_w(200);
+	slider->set_slider_val(AngleIntersection);
+	Glui->add_separator();
+
+	//Leading Angle
+	Glui->add_statictext("Blindspot Leading Angle (Degrees)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &LeadingAngle);
+	slider->set_float_limits(0., 2*M_PI);
+	slider->set_w(200);
+	slider->set_slider_val(LeadingAngle);
+	Glui->add_separator();
+
+	//Trailing Angle
+	Glui->add_statictext("Blindspot Trailing Angle (Degrees)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &TrailingAngle);
+	slider->set_float_limits(0., 2*M_PI);
+	slider->set_w(200);
+	slider->set_slider_val(TrailingAngle);
+	Glui->add_separator();
+
+	//Car start
+	Glui->add_statictext("Car Starting Distance (Meters)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarStart);
+	slider->set_float_limits(-1000., 1000.);
+	slider->set_w(200);
+	slider->set_slider_val(CarStart);
+	Glui->add_separator();
+
+	//Car speed
+	Glui->add_statictext("Car Speed (meters/second)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarSpeed);
+	slider->set_float_limits(0., 100.);
+	slider->set_w(200);
+	slider->set_slider_val(CarSpeed);
+	Glui->add_separator();
+
+	//Bike Start
+	Glui->add_statictext("Bike Starting Distance (meters)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeStart);
+	slider->set_float_limits(-1000., 1000.);
+	slider->set_w(200);
+	slider->set_slider_val(BikeStart);
+	Glui->add_separator();
+
+	//Bike Speed
+	Glui->add_statictext("Bike Speed (meters/second)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeSpeed);
+	slider->set_float_limits(0., 100.);
+	slider->set_w(200);
+	slider->set_slider_val(BikeSpeed);
+	Glui->add_separator();
+
+	panel = Glui->add_panel("Scene Transformation");
+
+	Glui->add_column_to_panel(panel, GLUIFALSE);
+	scale = Glui->add_translation_to_panel(panel, "Scale", GLUI_TRANSLATION_Y, &Scale2);
+	scale->set_speed(0.01f);
+
+	Glui->add_column_to_panel(panel, FALSE);
+	trans = Glui->add_translation_to_panel(panel, "Trans XY", GLUI_TRANSLATION_XY, &TransXYZ[0]);
+	trans->set_speed(0.1f);
+
+	panel = Glui->add_panel("", FALSE);
+
+	Glui->add_button_to_panel(panel, "Reset", RESET, (GLUI_Update_CB)Buttons);
+
+	Glui->add_column_to_panel(panel, FALSE);
+
+	Glui->add_button_to_panel(panel, "Pause / Play", PLAY, (GLUI_Update_CB)Buttons);
+
+	Glui->add_column_to_panel(panel, FALSE);
+
+	Glui->add_button_to_panel(panel, "Quit", QUIT, (GLUI_Update_CB)Buttons);
+
+
+	// tell glui what graphics window it needs to post a redisplay to:
+
+	Glui->set_main_gfx_window(MainWindow);
+
+
+	// set the graphics window's idle function:
+
+	GLUI_Master.set_glutIdleFunc(NULL);
+}
+
+/*
 // initialize the glui window:
 void InitMenus( )
 {
@@ -525,74 +662,7 @@ void InitMenus( )
 	// attach the pop-up menu to the right mouse button:
 	glutAttachMenu( GLUT_RIGHT_BUTTON );
 }
-
-//
-// Initialize the glui window:
-//
-void InitGlui(void)
-{
-	GLUI_Panel *panel;
-	GLUI_RadioGroup *group;
-	GLUI_Rotation *rot;
-	GLUI_Translation *trans, *scale;
-
-
-	// setup the glui window:
-
-	glutInitWindowPosition(INIT_WINDOW_SIZE + 50, 0);
-
-	//DEBUG NOTES:
-	// Glui is not null and has a good address, however the calls towards it are accessing bad areas of memory
-	Glui = GLUI_Master.create_glui((char *)GLUITITLE);
-
-	Glui->add_statictext((char *)GLUITITLE);
-	
-	Glui->add_separator();
-
-	Glui->add_checkbox("Axes", &AxesOn);
-
-	panel = Glui->add_panel("Object Transformation");
-
-	rot = Glui->add_rotation_to_panel(panel, "Rotation", (float *)RotMatrix);
-
-	// allow the object to be spun via the glui rotation widget:
-
-	rot->set_spin(1.0);
-
-	Glui->add_column_to_panel(panel, GLUIFALSE);
-	scale = Glui->add_translation_to_panel(panel, "Scale", GLUI_TRANSLATION_Y, &Scale2);
-	scale->set_speed(0.005f);
-
-	Glui->add_column_to_panel(panel, GLUIFALSE);
-	trans = Glui->add_translation_to_panel(panel, "Trans XY", GLUI_TRANSLATION_XY, &TransXYZ[0]);
-	trans->set_speed(0.05f);
-
-	Glui->add_column_to_panel(panel, GLUIFALSE);
-	trans = Glui->add_translation_to_panel(panel, "Trans Z", GLUI_TRANSLATION_Z, &TransXYZ[2]);
-	trans->set_speed(0.05f);
-
-	Glui->add_checkbox("Debug", &DebugOn);
-
-
-	panel = Glui->add_panel("", GLUIFALSE);
-
-	Glui->add_button_to_panel(panel, "Reset", RESET, (GLUI_Update_CB)Buttons);
-
-	Glui->add_column_to_panel(panel, GLUIFALSE);
-
-	Glui->add_button_to_panel(panel, "Quit", QUIT, (GLUI_Update_CB)Buttons);
-
-
-	// tell glui what graphics window it needs to post a redisplay to:
-
-	Glui->set_main_gfx_window(MainWindow);
-
-
-	// set the graphics window's idle function if needed:
-	
-	GLUI_Master.set_glutIdleFunc(NULL);
-}
-
+*/
 
 // initialize the glut and OpenGL libraries:
 //	also setup display lists and callback functions
@@ -742,26 +812,16 @@ void Keyboard( unsigned char c, int x, int y )
 	{
 		case 'r':
 		case 'R':
-			DoMainMenu(RESET);
+			Buttons(RESET);
 			break;
 		case 'q':
 		case 'Q':
 		case ESCAPE:
-			DoMainMenu( QUIT );	// will not return here
+			Buttons( QUIT );	// will not return here
 			break;				// happy compiler
-		case 'f':
-		case 'F':
-			Frozen = !Frozen;
-			if (Frozen)
-			{
-				glutIdleFunc(NULL);
-				time_frozen = glutGet(GLUT_ELAPSED_TIME) - animate_start_time;
-			}
-			else
-			{
-				glutIdleFunc(Animate);
-				animate_start_time = glutGet(GLUT_ELAPSED_TIME) - time_frozen;
-			}
+		case 'p':
+		case 'P':
+			Buttons( PLAY );
 			break;
 
 		default:
