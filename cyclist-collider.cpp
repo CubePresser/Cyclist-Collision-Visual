@@ -38,10 +38,11 @@ Bike: 39m (128 ft)
 
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include "glut.h"
+#include "freeglut.h"
+#include "glui.h"
 
 // title of these windows:
-const char *WINDOWTITLE = { "Cyclist Collision - Jonathan Jones" };
+const char *WINDOWTITLE = { "Cyclist Collision Visual - Jonathan Jones" };
 const char *GLUITITLE   = { "User Interface Window" };
 
 
@@ -65,6 +66,14 @@ const int INIT_WINDOW_SIZE = { 600 };
 const float ANGFACT = { 1. };
 const float SCLFACT = { 0.005f };
 
+// able to use the left mouse for either rotation or scaling,
+// in case have only a 2-button mouse:
+enum LeftButton
+{
+	ROTATE,
+	SCALE
+};
+
 //Depth Cue
 const int DEPTHCUE = 0;
 
@@ -81,6 +90,7 @@ const int RIGHT  = { 1 };
 // which button:
 enum ButtonVals
 {
+	PLAY,
 	RESET,
 	QUIT
 };
@@ -107,7 +117,7 @@ int		AxesOn;					// != 0 means to draw the axes
 int		ViewType = 0;			// 0 = Car view, 1 = Intersection view
 int		DebugOn;				// != 0 means to print debugging info
 int		MainWindow;				// window id for main graphics window
-float	Scale;					// scaling factor
+float	Scale, Scale2;			// scaling factors
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
 
@@ -138,10 +148,18 @@ GLfloat BikeDistanceTravelled;
 int animate_start_time; //Log the time in which animation starts so simulation time is essentially starting at t=0
 int time_frozen;
 
+//GLUI globals
+GLUI *	Glui;				// instance of glui window
+int	GluiWindow;				// the glut id for the glui window
+GLfloat	RotMatrix[4][4];	// set by glui rotation widget
+float	TransXYZ[3];		// set by glui translation widgets
+bool	play;
+float	Time;
 
 
 // function prototypes:
 void	Animate( );
+void	Buttons( int );
 void	Display( );
 void	DoAxesMenu(int);
 void	DoViewMenu(int);
@@ -150,9 +168,10 @@ void	DoMainMenu( int );
 void	DoRasterString( float, float, float, char * );
 void	DoStrokeString( float, float, float, float, char * );
 float	ElapsedSeconds( );
+void	InitGlui();
 void	InitGraphics( );
 void	InitLists( );
-void	InitMenus( );
+//void	InitMenus( );
 void	Keyboard( unsigned char, int, int );
 void	MouseButton( int, int, int, int );
 void	MouseMotion( int, int );
@@ -163,6 +182,7 @@ void	Visibility( int );
 void	Axes( float );
 void	HsvRgb( float[3], float [3] );
 
+//Draw car and shadow
 void	DrawShadow();
 void	DrawCar(float);
 
@@ -195,7 +215,8 @@ int main( int argc, char *argv[ ] )
 
 	// setup all the user interface stuff:
 
-	InitMenus( );
+	//InitMenus( );
+	InitGlui();
 
 
 	// draw the scene once and wait for some interaction:
@@ -214,21 +235,67 @@ int main( int argc, char *argv[ ] )
 //Update distance information with respect to speed for the Car and Bike in the scene
 void Animate( )
 {
-	float Time;
-	int ms = glutGet(GLUT_ELAPSED_TIME) - animate_start_time; //Get the total elapsed time and subtract from it the time since animation has started
-	Time = (float)ms / 1000.f;        //Get time in seconds
+	if (play)
+	{
+		float seconds = ((float)(glutGet(GLUT_ELAPSED_TIME) - animate_start_time) / 1000.f);
+		float dt = seconds - Time;
+		Time = seconds;
 
-	//Distance = Time * Speed
-	CarDistanceTravelled = (Time * CarSpeed);
-	CarDistance = CarStart - CarDistanceTravelled;
-
-	BikeDistanceTravelled = (Time * BikeSpeed);
-	BikeDistance = BikeStart - BikeDistanceTravelled;
+		//Distance += DeltaTime * Speed
+		CarDistanceTravelled += (dt * CarSpeed);
+		BikeDistanceTravelled += (dt * BikeSpeed);
+	}
 
 	// force a call to Display( ) next time it is convenient:
+	Glui->sync_live();
 	glutSetWindow( MainWindow );
 	glutPostRedisplay( );
 }
+
+void
+Buttons(int id)
+{
+	switch (id)
+	{
+	case PLAY:
+		play = !play;
+		Frozen = !Frozen;
+		if (Frozen)
+		{
+			time_frozen = glutGet(GLUT_ELAPSED_TIME) - animate_start_time;
+		}
+		else
+		{
+			animate_start_time = glutGet(GLUT_ELAPSED_TIME) - time_frozen;
+		}
+		break;
+
+	case RESET:
+		Reset();
+		Glui->sync_live();
+		glutSetWindow(MainWindow);
+		glutPostRedisplay();
+		break;
+
+	case QUIT:
+		// gracefully close the glui window:
+		// gracefully close out the graphics:
+		// gracefully close the graphics window:
+		// gracefully exit the program:
+
+		Glui->close();
+		glutSetWindow(MainWindow);
+		glFinish();
+		glutDestroyWindow(MainWindow);
+		exit(0);
+		break;
+
+	default:
+		fprintf(stderr, "Don't know what to do with Button ID %d\n", id);
+	}
+
+}
+
 
 /*************************************************
  * Function: 
@@ -239,6 +306,11 @@ void Animate( )
 //Draw the scene
 void Display( )
 {
+	CarDistance = CarStart - CarDistanceTravelled;
+	BikeDistance = BikeStart - BikeDistanceTravelled;
+
+	GLfloat scale2;
+
 	if( DebugOn != 0 )
 	{
 		fprintf( stderr, "Display\n" );
@@ -254,7 +326,7 @@ void Display( )
 
 	glEnable( GL_DEPTH_TEST );
 
-	// specify shading to be flat:
+	//Specify shading to be flat:
 	glShadeModel( GL_FLAT );
 
 
@@ -280,40 +352,25 @@ void Display( )
 	glLoadIdentity( );
 
 
-	// set the eye position, look-at position, and up-vector:
-	if(!ViewType)
-		gluLookAt( 0., 1.6, CarDistance,     0., 1.6, -CarDistanceTravelled,     0., 1., 0. );
-	else
+	//Check view type
+	if (!ViewType) //Car interior
 	{
-		gluLookAt(0., 100, 100.,     0., 0., 0.,     0., 1., 0.);
-
-		// rotate the scene:
-		glRotatef( (GLfloat)Yrot, 0., 1., 0. );
-		glRotatef( (GLfloat)Xrot, 1., 0., 0. );
-
-		// uniformly scale the scene:
-		if( Scale < MINSCALE )
-			Scale = MINSCALE;
-		glScalef( (GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale );
+		gluLookAt(0., 1.6, CarDistance, 0., 1.6, -CarDistanceTravelled, 0., 1., 0.); //Eye is positioned at the car looking out the front
 	}
-
-	
-
-	// set the fog parameters:
-	if(DEPTHCUE)
+	else //Intersection
 	{
-		glFogi( GL_FOG_MODE, FOGMODE );
-		glFogfv( GL_FOG_COLOR, FOGCOLOR );
-		glFogf( GL_FOG_DENSITY, FOGDENSITY );
-		glFogf( GL_FOG_START, FOGSTART );
-		glFogf( GL_FOG_END, FOGEND );
-		glEnable( GL_FOG );
-	}
-	else
-	{
-		glDisable( GL_FOG );
-	}
+		gluLookAt(0., 100., 100.,     0., 0., 0.,     0., 1., 0.);
 
+		glTranslatef((GLfloat)TransXYZ[0], (GLfloat)TransXYZ[1], -(GLfloat)TransXYZ[2]);
+		glRotatef((GLfloat)Yrot, 0., 1., 0.);
+		glRotatef((GLfloat)Xrot, 1., 0., 0.);
+		glMultMatrixf((const GLfloat *)RotMatrix);
+		glScalef((GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale);
+		scale2 = 1. + Scale2;
+		if (scale2 < MINSCALE)
+			scale2 = MINSCALE;
+		glScalef((GLfloat)scale2, (GLfloat)scale2, (GLfloat)scale2);
+	}
 
 	// possibly draw the axes:
 	if( AxesOn != 0 )
@@ -326,8 +383,6 @@ void Display( )
 	// since we are using glScalef( ), be sure normals get unitized:
 	glEnable( GL_NORMALIZE );
 
-
-	// TODO: DRAW OBJECTS HERE ---------------------------------------------------------------------------------------------------------------------------------------------
 	glCallList(GroundList);
 	glCallList(RoadList); //Car Road
 
@@ -339,7 +394,7 @@ void Display( )
 
 	//Draw the Car
 	glPushMatrix();
-	glTranslatef(0, 0, -CarDistanceTravelled); //Move the car
+	glTranslatef(0, 0, CarDistance); //Move the car and shadow
 	DrawCar(2.195f);
 	glPopMatrix();
 
@@ -353,18 +408,13 @@ void Display( )
 	//Draw blind spot shadow
 	DrawShadow();
 
-	//
-	// the projection matrix is reset to define a scene whose
-	// world coordinate system goes from 0-100 in each axis
-	//
-	// this is called "percent units", and is just a convenience
-	//
-	// the modelview matrix is reset to identity as we don't
-	// want to transform these coordinates
+	//Reset projection matrix and set world coordinates 0-100
 	glDisable( GL_DEPTH_TEST );
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity( );
 	gluOrtho2D( 0., 100.,     0., 100. );
+
+	//Reset modelview matrix
 	glMatrixMode( GL_MODELVIEW );
 	glLoadIdentity( );
 
@@ -468,7 +518,126 @@ float ElapsedSeconds( )
 	return (float)ms / 1000.f;
 }
 
+void
+InitGlui(void)
+{
+	GLUI_Panel *panel;
+	GLUI_Translation *trans, *scale;
+	GLUI_Rotation *rot;
 
+	// setup the glui window:
+
+	glutInitWindowPosition(INIT_WINDOW_SIZE + 50, 0);
+	Glui = GLUI_Master.create_glui((char *)GLUITITLE);
+
+
+	Glui->add_statictext((char *)GLUITITLE);
+	Glui->add_separator();
+
+	//Axes
+	Glui->add_checkbox( "Axes", &AxesOn );
+
+	//View
+	Glui->add_checkbox("TopDown", &ViewType);
+
+	//Angle of intersection
+	Glui->add_statictext("Angle of Intersection");
+	GLUI_HSlider *slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &AngleIntersection);
+	slider->set_float_limits(0.f, M_PI);
+	slider->set_w(500);
+	slider->set_slider_val(AngleIntersection);
+	Glui->add_separator();
+
+	//Leading Angle
+	Glui->add_statictext("Blindspot Leading Angle (Degrees)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &LeadingAngle);
+	slider->set_float_limits(0.f, M_PI / 4.f);
+	slider->set_w(500);
+	slider->set_slider_val(LeadingAngle);
+	Glui->add_separator();
+
+	//Trailing Angle
+	Glui->add_statictext("Blindspot Trailing Angle (Degrees)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &TrailingAngle);
+	slider->set_float_limits(0.f, M_PI / 4.f);
+	slider->set_w(500);
+	slider->set_slider_val(TrailingAngle);
+	Glui->add_separator();
+
+	//Car start
+	Glui->add_statictext("Car Starting Distance (Meters)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarStart);
+	slider->set_float_limits(0.f, 1000.f);
+	slider->set_w(500);
+	slider->set_slider_val(CarStart);
+	Glui->add_separator();
+
+	//Car speed
+	Glui->add_statictext("Car Speed (meters/second)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarSpeed);
+	slider->set_float_limits(0.f, 100.f);
+	slider->set_w(500);
+	slider->set_slider_val(CarSpeed);
+	Glui->add_separator();
+
+	//Bike Start
+	Glui->add_statictext("Bike Starting Distance (meters)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeStart);
+	slider->set_float_limits(0.f, 1000.f);
+	slider->set_w(500);
+	slider->set_slider_val(BikeStart);
+	Glui->add_separator();
+
+	//Bike Speed
+	Glui->add_statictext("Bike Speed (meters/second)");
+	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeSpeed);
+	slider->set_float_limits(0.f, 100.f);
+	slider->set_w(500);
+	slider->set_slider_val(BikeSpeed);
+	Glui->add_separator();
+
+	panel = Glui->add_panel("Scene Transformation");
+
+	rot = Glui->add_rotation_to_panel(panel, "Rotation", (float *)RotMatrix);
+
+	rot->set_spin(1.0);
+
+	Glui->add_column_to_panel(panel, GLUIFALSE);
+	scale = Glui->add_translation_to_panel(panel, "Scale", GLUI_TRANSLATION_Y, &Scale2);
+	scale->set_speed(0.01f);
+
+	Glui->add_column_to_panel(panel, GLUIFALSE);
+	trans = Glui->add_translation_to_panel(panel, "Trans XY", GLUI_TRANSLATION_XY, &TransXYZ[0]);
+	trans->set_speed(1.1f);
+
+	Glui->add_column_to_panel(panel, FALSE);
+	trans = Glui->add_translation_to_panel(panel, "Trans Z", GLUI_TRANSLATION_Z, &TransXYZ[2]);
+	trans->set_speed(1.1f);
+
+	panel = Glui->add_panel("", FALSE);
+
+	Glui->add_button_to_panel(panel, "Reset", RESET, (GLUI_Update_CB)Buttons);
+
+	Glui->add_column_to_panel(panel, FALSE);
+
+	Glui->add_button_to_panel(panel, "Pause / Play", PLAY, (GLUI_Update_CB)Buttons);
+
+	Glui->add_column_to_panel(panel, FALSE);
+
+	Glui->add_button_to_panel(panel, "Quit", QUIT, (GLUI_Update_CB)Buttons);
+
+
+	// tell glui what graphics window it needs to post a redisplay to:
+
+	Glui->set_main_gfx_window(MainWindow);
+
+
+	// set the graphics window's idle function:
+
+	GLUI_Master.set_glutIdleFunc(Animate);
+}
+
+/*
 // initialize the glui window:
 void InitMenus( )
 {
@@ -496,8 +665,7 @@ void InitMenus( )
 	// attach the pop-up menu to the right mouse button:
 	glutAttachMenu( GLUT_RIGHT_BUTTON );
 }
-
-
+*/
 
 // initialize the glut and OpenGL libraries:
 //	also setup display lists and callback functions
@@ -509,7 +677,7 @@ void InitGraphics( )
 
 	// set the initial window configuration:
 	glutInitWindowPosition( 0, 0 );
-	glutInitWindowSize( INIT_WINDOW_SIZE * 2, INIT_WINDOW_SIZE );
+	glutInitWindowSize( INIT_WINDOW_SIZE, INIT_WINDOW_SIZE );
 
 	// open the window and set its title:
 	MainWindow = glutCreateWindow( WINDOWTITLE );
@@ -558,7 +726,7 @@ void InitGraphics( )
 	glutTabletButtonFunc( NULL );
 	glutMenuStateFunc( NULL );
 	glutTimerFunc( -1, NULL, 0 );
-	glutIdleFunc( NULL );
+	//glutIdleFunc( NULL );
 
 	// init glew (a window must be open to do this):
 	#ifdef WIN32
@@ -647,31 +815,24 @@ void Keyboard( unsigned char c, int x, int y )
 	{
 		case 'r':
 		case 'R':
-			DoMainMenu(RESET);
+			Buttons(RESET);
 			break;
 		case 'q':
 		case 'Q':
 		case ESCAPE:
-			DoMainMenu( QUIT );	// will not return here
+			Buttons( QUIT );	// will not return here
 			break;				// happy compiler
-		case 'f':
-		case 'F':
-			Frozen = !Frozen;
-			if (Frozen)
-			{
-				glutIdleFunc(NULL);
-				time_frozen = glutGet(GLUT_ELAPSED_TIME) - animate_start_time;
-			}
-			else
-			{
-				glutIdleFunc(Animate);
-				animate_start_time = glutGet(GLUT_ELAPSED_TIME) - time_frozen;
-			}
+		case 'p':
+		case 'P':
+			Buttons( PLAY );
 			break;
 
 		default:
 			fprintf( stderr, "Don't know what to do with keyboard hit: '%c' (0x%0x)\n", c, c );
 	}
+
+	// synchronize the GLUI display with the variables:
+	Glui->sync_live();
 
 	// force a call to Display( ):
 	glutSetWindow( MainWindow );
@@ -757,11 +918,20 @@ void MouseMotion( int x, int y )
 // - Also used to "Reset" the scene
 void Reset( )
 {
+	Time = 0.f;
 	ActiveButton = 0;
-	AxesOn = 0;
-	DebugOn = 0;
+	AxesOn = GLUIFALSE;
+	DebugOn = GLUIFALSE;
 	Scale  = 1.0;
 	Xrot = Yrot = 0.;
+
+	TransXYZ[0] = TransXYZ[1] = TransXYZ[2] = 0.;
+
+	RotMatrix[0][1] = RotMatrix[0][2] = RotMatrix[0][3] = 0.;
+	RotMatrix[1][0] = RotMatrix[1][2] = RotMatrix[1][3] = 0.;
+	RotMatrix[2][0] = RotMatrix[2][1] = RotMatrix[2][3] = 0.;
+	RotMatrix[3][0] = RotMatrix[3][1] = RotMatrix[3][3] = 0.;
+	RotMatrix[0][0] = RotMatrix[1][1] = RotMatrix[2][2] = RotMatrix[3][3] = 1.;
 
 	AngleIntersection = 69.f * DEG_TO_RAD;
 	LeadingAngle = 19.4f * DEG_TO_RAD;
@@ -778,10 +948,11 @@ void Reset( )
 	BikeDistance = BikeStart;
 	BikeDistanceTravelled = 0;
 
+	play = false;
+
 	animate_start_time = glutGet(GLUT_ELAPSED_TIME);
 	time_frozen = 0;
 	Frozen = true;
-	glutIdleFunc(NULL);
 }
 
 
@@ -1014,7 +1185,7 @@ void DrawShadow()
 	float CSED_Trail =  CSED_Numerator / sin((M_PI - (TrailingAngle + AngleIntersection))); //Distance from trailing edge of blindspot shadow to car
 	float CSED_Lead = CSED_Numerator / sin((M_PI - (LeadingAngle + AngleIntersection))); //Distance from leading edge blindspot shadow to car
 
-	//Getting some trig functions calculated so they aren't repeated unnecessarily in the following operations
+	//Cleaning things up so its easier to read the next set of operations
 	float Opp_Lead = sin(LeadingAngle);
 	float Opp_Trail = sin(TrailingAngle);
 	float Adj_Lead = -cos(LeadingAngle);
@@ -1033,8 +1204,8 @@ void DrawShadow()
 void DrawCar(float scaleFactor)
 {
 	//Calculate some trig here to avoid repeat calculations 
-	float leadX = sin(LeadingAngle) * scaleFactor, leadZ = (-cos(LeadingAngle) * scaleFactor) + CarStart;
-	float trailX = sin(TrailingAngle) * scaleFactor, trailZ = (-cos(TrailingAngle) * scaleFactor) + CarStart;
+	float leadX = sin(LeadingAngle) * scaleFactor, leadZ = (-cos(LeadingAngle) * scaleFactor);
+	float trailX = sin(TrailingAngle) * scaleFactor, trailZ = (-cos(TrailingAngle) * scaleFactor);
 
 	float length = 4.f;
 	float height = 2.f;
