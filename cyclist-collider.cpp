@@ -42,7 +42,7 @@ Bike: 39m (128 ft)
 #include "glui.h"
 
 // title of these windows:
-const char *WINDOWTITLE = { "Cyclist Collision - Jonathan Jones" };
+const char *WINDOWTITLE = { "Cyclist Collision Visual - Jonathan Jones" };
 const char *GLUITITLE   = { "User Interface Window" };
 
 
@@ -182,9 +182,9 @@ void	Visibility( int );
 void	Axes( float );
 void	HsvRgb( float[3], float [3] );
 
+//Draw car and shadow
 void	DrawShadow();
 void	DrawCar(float);
-
 
 // main program:
 
@@ -243,13 +243,11 @@ void Animate( )
 
 		//Distance += DeltaTime * Speed
 		CarDistanceTravelled += (dt * CarSpeed);
-		CarDistance = CarStart - CarDistanceTravelled;
-
 		BikeDistanceTravelled += (dt * BikeSpeed);
-		BikeDistance = BikeStart - BikeDistanceTravelled;
 	}
 
 	// force a call to Display( ) next time it is convenient:
+	Glui->sync_live();
 	glutSetWindow( MainWindow );
 	glutPostRedisplay( );
 }
@@ -308,6 +306,11 @@ Buttons(int id)
 //Draw the scene
 void Display( )
 {
+	CarDistance = CarStart - CarDistanceTravelled;
+	BikeDistance = BikeStart - BikeDistanceTravelled;
+
+	GLfloat scale2;
+
 	if( DebugOn != 0 )
 	{
 		fprintf( stderr, "Display\n" );
@@ -356,17 +359,17 @@ void Display( )
 	}
 	else //Intersection
 	{
-		gluLookAt(0., 100, 100.,     0., 0., 0.,     0., 1., 0.);
+		gluLookAt(0., 100., 100.,     0., 0., 0.,     0., 1., 0.);
 
-		//Rotation is wacky, how to rotate around Z axis too??
-		//Rotate the scene based upon the mouse movement
-		glRotatef( (GLfloat)Yrot, 0., 1., 0. );
-		glRotatef( (GLfloat)Xrot, 1., 0., 0. );
-
-		//Uniformly scale the scene based upon the mouse movement
-		if( Scale < MINSCALE )
-			Scale = MINSCALE;
-		glScalef( (GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale );
+		glTranslatef((GLfloat)TransXYZ[0], (GLfloat)TransXYZ[1], -(GLfloat)TransXYZ[2]);
+		glRotatef((GLfloat)Yrot, 0., 1., 0.);
+		glRotatef((GLfloat)Xrot, 1., 0., 0.);
+		glMultMatrixf((const GLfloat *)RotMatrix);
+		glScalef((GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale);
+		scale2 = 1. + Scale2;
+		if (scale2 < MINSCALE)
+			scale2 = MINSCALE;
+		glScalef((GLfloat)scale2, (GLfloat)scale2, (GLfloat)scale2);
 	}
 
 	// possibly draw the axes:
@@ -380,8 +383,6 @@ void Display( )
 	// since we are using glScalef( ), be sure normals get unitized:
 	glEnable( GL_NORMALIZE );
 
-
-	// TODO: DRAW OBJECTS HERE ---------------------------------------------------------------------------------------------------------------------------------------------
 	glCallList(GroundList);
 	glCallList(RoadList); //Car Road
 
@@ -393,7 +394,7 @@ void Display( )
 
 	//Draw the Car
 	glPushMatrix();
-	glTranslatef(0, 0, -CarDistanceTravelled); //Move the car
+	glTranslatef(0, 0, CarDistance); //Move the car and shadow
 	DrawCar(2.195f);
 	glPopMatrix();
 
@@ -522,6 +523,7 @@ InitGlui(void)
 {
 	GLUI_Panel *panel;
 	GLUI_Translation *trans, *scale;
+	GLUI_Rotation *rot;
 
 	// setup the glui window:
 
@@ -541,68 +543,76 @@ InitGlui(void)
 	//Angle of intersection
 	Glui->add_statictext("Angle of Intersection");
 	GLUI_HSlider *slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &AngleIntersection);
-	slider->set_float_limits(0., 2*M_PI);
-	slider->set_w(200);
+	slider->set_float_limits(0.f, M_PI);
+	slider->set_w(500);
 	slider->set_slider_val(AngleIntersection);
 	Glui->add_separator();
 
 	//Leading Angle
 	Glui->add_statictext("Blindspot Leading Angle (Degrees)");
 	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &LeadingAngle);
-	slider->set_float_limits(0., 2*M_PI);
-	slider->set_w(200);
+	slider->set_float_limits(0.f, M_PI / 4.f);
+	slider->set_w(500);
 	slider->set_slider_val(LeadingAngle);
 	Glui->add_separator();
 
 	//Trailing Angle
 	Glui->add_statictext("Blindspot Trailing Angle (Degrees)");
 	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &TrailingAngle);
-	slider->set_float_limits(0., 2*M_PI);
-	slider->set_w(200);
+	slider->set_float_limits(0.f, M_PI / 4.f);
+	slider->set_w(500);
 	slider->set_slider_val(TrailingAngle);
 	Glui->add_separator();
 
 	//Car start
 	Glui->add_statictext("Car Starting Distance (Meters)");
 	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarStart);
-	slider->set_float_limits(-1000., 1000.);
-	slider->set_w(200);
+	slider->set_float_limits(0.f, 1000.f);
+	slider->set_w(500);
 	slider->set_slider_val(CarStart);
 	Glui->add_separator();
 
 	//Car speed
 	Glui->add_statictext("Car Speed (meters/second)");
 	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarSpeed);
-	slider->set_float_limits(0., 100.);
-	slider->set_w(200);
+	slider->set_float_limits(0.f, 100.f);
+	slider->set_w(500);
 	slider->set_slider_val(CarSpeed);
 	Glui->add_separator();
 
 	//Bike Start
 	Glui->add_statictext("Bike Starting Distance (meters)");
 	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeStart);
-	slider->set_float_limits(-1000., 1000.);
-	slider->set_w(200);
+	slider->set_float_limits(0.f, 1000.f);
+	slider->set_w(500);
 	slider->set_slider_val(BikeStart);
 	Glui->add_separator();
 
 	//Bike Speed
 	Glui->add_statictext("Bike Speed (meters/second)");
 	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeSpeed);
-	slider->set_float_limits(0., 100.);
-	slider->set_w(200);
+	slider->set_float_limits(0.f, 100.f);
+	slider->set_w(500);
 	slider->set_slider_val(BikeSpeed);
 	Glui->add_separator();
 
 	panel = Glui->add_panel("Scene Transformation");
 
+	rot = Glui->add_rotation_to_panel(panel, "Rotation", (float *)RotMatrix);
+
+	rot->set_spin(1.0);
+
 	Glui->add_column_to_panel(panel, GLUIFALSE);
 	scale = Glui->add_translation_to_panel(panel, "Scale", GLUI_TRANSLATION_Y, &Scale2);
 	scale->set_speed(0.01f);
 
-	Glui->add_column_to_panel(panel, FALSE);
+	Glui->add_column_to_panel(panel, GLUIFALSE);
 	trans = Glui->add_translation_to_panel(panel, "Trans XY", GLUI_TRANSLATION_XY, &TransXYZ[0]);
-	trans->set_speed(0.1f);
+	trans->set_speed(1.1f);
+
+	Glui->add_column_to_panel(panel, FALSE);
+	trans = Glui->add_translation_to_panel(panel, "Trans Z", GLUI_TRANSLATION_Z, &TransXYZ[2]);
+	trans->set_speed(1.1f);
 
 	panel = Glui->add_panel("", FALSE);
 
@@ -667,7 +677,7 @@ void InitGraphics( )
 
 	// set the initial window configuration:
 	glutInitWindowPosition( 0, 0 );
-	glutInitWindowSize( INIT_WINDOW_SIZE * 2, INIT_WINDOW_SIZE );
+	glutInitWindowSize( INIT_WINDOW_SIZE, INIT_WINDOW_SIZE );
 
 	// open the window and set its title:
 	MainWindow = glutCreateWindow( WINDOWTITLE );
@@ -914,6 +924,14 @@ void Reset( )
 	DebugOn = GLUIFALSE;
 	Scale  = 1.0;
 	Xrot = Yrot = 0.;
+
+	TransXYZ[0] = TransXYZ[1] = TransXYZ[2] = 0.;
+
+	RotMatrix[0][1] = RotMatrix[0][2] = RotMatrix[0][3] = 0.;
+	RotMatrix[1][0] = RotMatrix[1][2] = RotMatrix[1][3] = 0.;
+	RotMatrix[2][0] = RotMatrix[2][1] = RotMatrix[2][3] = 0.;
+	RotMatrix[3][0] = RotMatrix[3][1] = RotMatrix[3][3] = 0.;
+	RotMatrix[0][0] = RotMatrix[1][1] = RotMatrix[2][2] = RotMatrix[3][3] = 1.;
 
 	AngleIntersection = 69.f * DEG_TO_RAD;
 	LeadingAngle = 19.4f * DEG_TO_RAD;
@@ -1186,8 +1204,8 @@ void DrawShadow()
 void DrawCar(float scaleFactor)
 {
 	//Calculate some trig here to avoid repeat calculations 
-	float leadX = sin(LeadingAngle) * scaleFactor, leadZ = (-cos(LeadingAngle) * scaleFactor) + CarStart;
-	float trailX = sin(TrailingAngle) * scaleFactor, trailZ = (-cos(TrailingAngle) * scaleFactor) + CarStart;
+	float leadX = sin(LeadingAngle) * scaleFactor, leadZ = (-cos(LeadingAngle) * scaleFactor);
+	float trailX = sin(TrailingAngle) * scaleFactor, trailZ = (-cos(TrailingAngle) * scaleFactor);
 
 	float length = 4.f;
 	float height = 2.f;
