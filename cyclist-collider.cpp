@@ -59,7 +59,7 @@ const float DEG_TO_RAD	= M_PI / 180.0;
 const float RAD_TO_DEG	= 180.0 / M_PI;
 
 // initial window size:
-const int INIT_WINDOW_SIZE = { 600 };
+const int INIT_WINDOW_SIZE = { 800 };
 
 // multiplication factors for input interaction:
 //  (these are known from previous experience)
@@ -122,7 +122,10 @@ float	Scale, Scale2;			// scaling factors
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
 
+//Freezing the animation
 bool	Frozen;
+
+GLfloat Fov; //Field of view
 
 GLuint	GroundList;
 GLuint	RoadList;
@@ -165,7 +168,18 @@ struct GLUI_SliderPackage
 
 };
 
-struct GLUI_SliderPackage sliders[7];
+enum SliderVals {
+	FOV,
+	AOI,
+	LA,
+	TA,
+	CSTART,
+	CSPEED,
+	BSTART,
+	BSPEED
+};
+
+struct GLUI_SliderPackage sliders[8];
 
 
 // function prototypes:
@@ -197,7 +211,7 @@ void	HsvRgb( float[3], float [3] );
 void	DrawShadow();
 void	DrawCar(float);
 
-void	UpdateGLUI();
+void	UpdateGLUI(int);
 
 // main program:
 
@@ -285,7 +299,7 @@ Buttons(int id)
 
 	case RESET:
 		Reset();
-		UpdateGLUI();
+		UpdateGLUI(-1);
 		Glui->sync_live();
 		glutSetWindow(MainWindow);
 		glutPostRedisplay();
@@ -364,7 +378,7 @@ void Display( )
 	// given as DISTANCES IN FRONT OF THE EYE
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity( );
-	gluPerspective( 90., 1.,	0.1, 1000. );
+	gluPerspective( (double)Fov, 1.,	0.1, 1000. );
 
 
 	// place the objects into the scene:
@@ -560,67 +574,75 @@ InitGlui(void)
 	//View
 	Glui->add_checkbox("Exterior View", &ViewType);
 
+	Glui->add_statictext("Field of View");
+	sliders[FOV].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &Fov);
+	sliders[FOV].slider->set_float_limits(0.f, 180.f);
+	sliders[FOV].slider->set_w(500);
+	sliders[FOV].slider->set_slider_val(Fov);
+	sliders[FOV].edit_text = Glui->add_edittext("Degrees [0 - 180]: ", GLUI_EDITTEXT_FLOAT, &Fov, FOV, (GLUI_Update_CB)UpdateGLUI);
+	Glui->add_separator();
+
 	//Angle of intersection
 	Glui->add_statictext("Angle of Intersection");
-	sliders[0].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &AngleIntersection);
-	sliders[0].slider->set_float_limits(0.f, 180.f);
-	sliders[0].slider->set_w(500);
-	sliders[0].slider->set_slider_val(AngleIntersection);
-	sliders[0].edit_text = Glui->add_edittext("Degrees [0 - 180]: ", GLUI_EDITTEXT_FLOAT, &AngleIntersection, NULL, (GLUI_Update_CB)UpdateGLUI);
+	sliders[AOI].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &AngleIntersection);
+	sliders[AOI].slider->set_float_limits(0.f, 180.f);
+	sliders[AOI].slider->set_w(500);
+	sliders[AOI].slider->set_slider_val(AngleIntersection);
+	sliders[AOI].edit_text = Glui->add_edittext("Degrees [0 - 180]: ", GLUI_EDITTEXT_FLOAT, &AngleIntersection, AOI, (GLUI_Update_CB)UpdateGLUI);
 	Glui->add_separator();
 
 	//Leading Angle
 	Glui->add_statictext("Blindspot Leading Angle");
-	sliders[1].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &LeadingAngle);
-	sliders[1].slider->set_float_limits(0.f, 45.f);
-	sliders[1].slider->set_w(500);
-	sliders[1].slider->set_slider_val(LeadingAngle);
-	sliders[1].edit_text = Glui->add_edittext("Degrees [0 - 45]: ", GLUI_EDITTEXT_FLOAT, &LeadingAngle, NULL, (GLUI_Update_CB)UpdateGLUI);
+	sliders[LA].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &LeadingAngle);
+	sliders[LA].slider->set_float_limits(0.f, 45.f);
+	sliders[LA].slider->set_w(500);
+	sliders[LA].slider->set_slider_val(LeadingAngle);
+	sliders[LA].edit_text = Glui->add_edittext("Degrees [0 - 45]: ", GLUI_EDITTEXT_FLOAT, &LeadingAngle, LA, (GLUI_Update_CB)UpdateGLUI);
 	Glui->add_separator();
 
 	//Trailing Angle
 	Glui->add_statictext("Blindspot Trailing Angle");
-	sliders[2].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &TrailingAngle);
-	sliders[2].slider->set_float_limits(0.f, 45.f);
-	sliders[2].slider->set_w(500);
-	sliders[2].slider->set_slider_val(TrailingAngle);
-	sliders[2].edit_text = Glui->add_edittext("Degrees [0 - 45]: ", GLUI_EDITTEXT_FLOAT, &TrailingAngle, NULL, (GLUI_Update_CB)UpdateGLUI);
+	sliders[TA].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &TrailingAngle);
+	sliders[TA].slider->set_float_limits(0.f, 45.f);
+	sliders[TA].slider->set_w(500);
+	sliders[TA].slider->set_slider_val(TrailingAngle);
+	sliders[TA].edit_text = Glui->add_edittext("Degrees [0 - 45]: ", GLUI_EDITTEXT_FLOAT, &TrailingAngle, TA, (GLUI_Update_CB)UpdateGLUI);
 	Glui->add_separator();
 
 	//Car start
 	Glui->add_statictext("Car Starting Distance");
-	sliders[3].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarStart);
-	sliders[3].slider->set_float_limits(0.f, 1000.f);
-	sliders[3].slider->set_w(500);
-	sliders[3].slider->set_slider_val(CarStart);
-	sliders[3].edit_text = Glui->add_edittext("Meters [0. - 1000.]: ", GLUI_EDITTEXT_FLOAT, &CarStart, NULL, (GLUI_Update_CB)UpdateGLUI);
+	sliders[CSTART].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarStart);
+	sliders[CSTART].slider->set_float_limits(0.f, 1000.f);
+	sliders[CSTART].slider->set_w(500);
+	sliders[CSTART].slider->set_slider_val(CarStart);
+	sliders[CSTART].edit_text = Glui->add_edittext("Meters [0. - 1000.]: ", GLUI_EDITTEXT_FLOAT, &CarStart, CSTART, (GLUI_Update_CB)UpdateGLUI);
 	Glui->add_separator();
 
 	//Car speed
 	Glui->add_statictext("Car Speed");
-	sliders[4].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarSpeed);
-	sliders[4].slider->set_float_limits(0.f, 100.f);
-	sliders[4].slider->set_w(500);
-	sliders[4].slider->set_slider_val(CarSpeed);
-	sliders[4].edit_text = Glui->add_edittext("Meters/Second [0 - 100]: ", GLUI_EDITTEXT_FLOAT, &CarSpeed, NULL, (GLUI_Update_CB)UpdateGLUI);
+	sliders[CSPEED].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarSpeed);
+	sliders[CSPEED].slider->set_float_limits(0.f, 100.f);
+	sliders[CSPEED].slider->set_w(500);
+	sliders[CSPEED].slider->set_slider_val(CarSpeed);
+	sliders[CSPEED].edit_text = Glui->add_edittext("Meters/Second [0 - 100]: ", GLUI_EDITTEXT_FLOAT, &CarSpeed, CSPEED, (GLUI_Update_CB)UpdateGLUI);
 	Glui->add_separator();
 
 	//Bike Start
 	Glui->add_statictext("Bike Starting Distance");
-	sliders[5].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeStart);
-	sliders[5].slider->set_float_limits(0.f, 1000.f);
-	sliders[5].slider->set_w(500);
-	sliders[5].slider->set_slider_val(BikeStart);
-	sliders[5].edit_text = Glui->add_edittext("Meters [0 - 1000]: ", GLUI_EDITTEXT_FLOAT, &BikeStart, NULL, (GLUI_Update_CB)UpdateGLUI);
+	sliders[BSTART].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeStart);
+	sliders[BSTART].slider->set_float_limits(0.f, 1000.f);
+	sliders[BSTART].slider->set_w(500);
+	sliders[BSTART].slider->set_slider_val(BikeStart);
+	sliders[BSTART].edit_text = Glui->add_edittext("Meters [0 - 1000]: ", GLUI_EDITTEXT_FLOAT, &BikeStart, BSTART, (GLUI_Update_CB)UpdateGLUI);
 	Glui->add_separator();
 
 	//Bike Speed
 	Glui->add_statictext("Bike Speed");
-	sliders[6].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeSpeed);
-	sliders[6].slider->set_float_limits(0.f, 100.f);
-	sliders[6].slider->set_w(500);
-	sliders[6].slider->set_slider_val(BikeSpeed);
-	sliders[6].edit_text = Glui->add_edittext("Meters/Second [0 - 100]: ", GLUI_EDITTEXT_FLOAT, &BikeSpeed, NULL, (GLUI_Update_CB)UpdateGLUI);
+	sliders[BSPEED].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeSpeed);
+	sliders[BSPEED].slider->set_float_limits(0.f, 100.f);
+	sliders[BSPEED].slider->set_w(500);
+	sliders[BSPEED].slider->set_slider_val(BikeSpeed);
+	sliders[BSPEED].edit_text = Glui->add_edittext("Meters/Second [0 - 100]: ", GLUI_EDITTEXT_FLOAT, &BikeSpeed, BSPEED, (GLUI_Update_CB)UpdateGLUI);
 	Glui->add_separator();
 
 	panel = Glui->add_panel("Scene Transformation");
@@ -960,6 +982,7 @@ void Reset( )
 	DebugOn = GLUIFALSE;
 	Scale  = 1.0;
 	Xrot = Yrot = 0.;
+	Fov = 90.f;
 
 	TransXYZ[0] = TransXYZ[1] = TransXYZ[2] = 0.;
 
@@ -1340,14 +1363,43 @@ void DrawCar(float scaleFactor)
 		glEnd();
 }
 
-void UpdateGLUI()
+void UpdateGLUI(int id)
 {
-	sliders[0].slider->set_slider_val(AngleIntersection);
-	sliders[1].slider->set_slider_val(LeadingAngle);
-	sliders[2].slider->set_slider_val(TrailingAngle);
-	sliders[3].slider->set_slider_val(CarStart);
-	sliders[4].slider->set_slider_val(CarSpeed);
-	sliders[5].slider->set_slider_val(BikeStart);
-	sliders[6].slider->set_slider_val(BikeSpeed);
+	switch (id)
+	{
+		case FOV:
+			sliders[FOV].slider->set_slider_val(Fov);
+			break;
+		case AOI:
+			sliders[AOI].slider->set_slider_val(AngleIntersection);
+			break;
+		case LA:
+			sliders[LA].slider->set_slider_val(LeadingAngle);
+			break;
+		case TA:
+			sliders[TA].slider->set_slider_val(TrailingAngle);
+			break;
+		case CSTART:
+			sliders[CSTART].slider->set_slider_val(CarStart);
+			break;
+		case CSPEED:
+			sliders[CSPEED].slider->set_slider_val(CarSpeed);
+			break;
+		case BSTART:
+			sliders[BSTART].slider->set_slider_val(BikeStart);
+			break;
+		case BSPEED:
+			sliders[BSPEED].slider->set_slider_val(BikeSpeed);
+			break;
+		default:
+			sliders[FOV].slider->set_slider_val(Fov);
+			sliders[AOI].slider->set_slider_val(AngleIntersection);
+			sliders[LA].slider->set_slider_val(LeadingAngle);
+			sliders[TA].slider->set_slider_val(TrailingAngle);
+			sliders[CSTART].slider->set_slider_val(CarStart);
+			sliders[CSPEED].slider->set_slider_val(CarSpeed);
+			sliders[BSTART].slider->set_slider_val(BikeStart);
+			sliders[BSPEED].slider->set_slider_val(BikeSpeed);
+	}
 	Glui->sync_live();
 }
