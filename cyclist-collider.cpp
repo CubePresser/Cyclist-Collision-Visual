@@ -156,6 +156,16 @@ float	TransXYZ[3];		// set by glui translation widgets
 bool	play;
 float	Time;
 
+//Structure to hold all the information needed for a slider on the GLUI panel
+struct GLUI_SliderPackage
+{
+	GLUI_HSlider* slider;
+	GLUI_EditText* edit_text;
+
+};
+
+struct GLUI_SliderPackage sliders[7];
+
 
 // function prototypes:
 void	Animate( );
@@ -171,7 +181,6 @@ float	ElapsedSeconds( );
 void	InitGlui();
 void	InitGraphics( );
 void	InitLists( );
-//void	InitMenus( );
 void	Keyboard( unsigned char, int, int );
 void	MouseButton( int, int, int, int );
 void	MouseMotion( int, int );
@@ -185,6 +194,8 @@ void	HsvRgb( float[3], float [3] );
 //Draw car and shadow
 void	DrawShadow();
 void	DrawCar(float);
+
+void	UpdateGLUI();
 
 // main program:
 
@@ -272,6 +283,7 @@ Buttons(int id)
 
 	case RESET:
 		Reset();
+		UpdateGLUI();
 		Glui->sync_live();
 		glutSetWindow(MainWindow);
 		glutPostRedisplay();
@@ -388,7 +400,7 @@ void Display( )
 
 	//Draw bike road
 	glPushMatrix();
-	glRotatef(AngleIntersection * RAD_TO_DEG, 0.f, 1.f, 0.f);
+	glRotatef(AngleIntersection, 0.f, 1.f, 0.f);
 	glCallList(RoadList); //Bike road
 	glPopMatrix();
 
@@ -400,7 +412,7 @@ void Display( )
 
 	//Draw bike
 	glPushMatrix();
-	glRotatef(AngleIntersection * RAD_TO_DEG, 0.f, 1.f, 0.f);
+	glRotatef(AngleIntersection, 0.f, 1.f, 0.f);
 	glTranslatef(0, 0, BikeDistance);
 	glCallList(BikeList);
 	glPopMatrix();
@@ -538,62 +550,69 @@ InitGlui(void)
 	Glui->add_checkbox( "Axes", &AxesOn );
 
 	//View
-	Glui->add_checkbox("TopDown", &ViewType);
+	Glui->add_checkbox("Exterior View", &ViewType);
 
 	//Angle of intersection
 	Glui->add_statictext("Angle of Intersection");
-	GLUI_HSlider *slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &AngleIntersection);
-	slider->set_float_limits(0.f, M_PI);
-	slider->set_w(500);
-	slider->set_slider_val(AngleIntersection);
+	sliders[0].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &AngleIntersection);
+	sliders[0].slider->set_float_limits(0.f, 180.f);
+	sliders[0].slider->set_w(500);
+	sliders[0].slider->set_slider_val(AngleIntersection);
+	sliders[0].edit_text = Glui->add_edittext("Degrees", GLUI_EDITTEXT_FLOAT, &AngleIntersection, NULL, (GLUI_Update_CB)UpdateGLUI);
 	Glui->add_separator();
 
 	//Leading Angle
-	Glui->add_statictext("Blindspot Leading Angle (Degrees)");
-	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &LeadingAngle);
-	slider->set_float_limits(0.f, M_PI / 4.f);
-	slider->set_w(500);
-	slider->set_slider_val(LeadingAngle);
+	Glui->add_statictext("Blindspot Leading Angle");
+	sliders[1].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &LeadingAngle);
+	sliders[1].slider->set_float_limits(0.f, 45.f);
+	sliders[1].slider->set_w(500);
+	sliders[1].slider->set_slider_val(LeadingAngle);
+	sliders[1].edit_text = Glui->add_edittext("Degrees", GLUI_EDITTEXT_FLOAT, &LeadingAngle);
 	Glui->add_separator();
 
 	//Trailing Angle
-	Glui->add_statictext("Blindspot Trailing Angle (Degrees)");
-	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &TrailingAngle);
-	slider->set_float_limits(0.f, M_PI / 4.f);
-	slider->set_w(500);
-	slider->set_slider_val(TrailingAngle);
+	Glui->add_statictext("Blindspot Trailing Angle");
+	sliders[2].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &TrailingAngle);
+	sliders[2].slider->set_float_limits(0.f, 45.f);
+	sliders[2].slider->set_w(500);
+	sliders[2].slider->set_slider_val(TrailingAngle);
+	sliders[2].edit_text = Glui->add_edittext("Degrees", GLUI_EDITTEXT_FLOAT, &TrailingAngle);
 	Glui->add_separator();
 
 	//Car start
-	Glui->add_statictext("Car Starting Distance (Meters)");
-	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarStart);
-	slider->set_float_limits(0.f, 1000.f);
-	slider->set_w(500);
-	slider->set_slider_val(CarStart);
+	Glui->add_statictext("Car Starting Distance");
+	sliders[3].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarStart);
+	sliders[3].slider->set_float_limits(0.f, 1000.f);
+	sliders[3].slider->set_w(500);
+	sliders[3].slider->set_slider_val(CarStart);
+	sliders[3].edit_text = Glui->add_edittext("Meters", GLUI_EDITTEXT_FLOAT, &CarStart);
 	Glui->add_separator();
 
 	//Car speed
-	Glui->add_statictext("Car Speed (meters/second)");
-	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarSpeed);
-	slider->set_float_limits(0.f, 100.f);
-	slider->set_w(500);
-	slider->set_slider_val(CarSpeed);
+	Glui->add_statictext("Car Speed");
+	sliders[4].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &CarSpeed);
+	sliders[4].slider->set_float_limits(0.f, 100.f);
+	sliders[4].slider->set_w(500);
+	sliders[4].slider->set_slider_val(CarSpeed);
+	sliders[4].edit_text = Glui->add_edittext("Meters/Second", GLUI_EDITTEXT_FLOAT, &CarSpeed);
 	Glui->add_separator();
 
 	//Bike Start
-	Glui->add_statictext("Bike Starting Distance (meters)");
-	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeStart);
-	slider->set_float_limits(0.f, 1000.f);
-	slider->set_w(500);
-	slider->set_slider_val(BikeStart);
+	Glui->add_statictext("Bike Starting Distance");
+	sliders[5].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeStart);
+	sliders[5].slider->set_float_limits(0.f, 1000.f);
+	sliders[5].slider->set_w(500);
+	sliders[5].slider->set_slider_val(BikeStart);
+	sliders[5].edit_text = Glui->add_edittext("Meters", GLUI_EDITTEXT_FLOAT, &BikeStart);
 	Glui->add_separator();
 
 	//Bike Speed
-	Glui->add_statictext("Bike Speed (meters/second)");
-	slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeSpeed);
-	slider->set_float_limits(0.f, 100.f);
-	slider->set_w(500);
-	slider->set_slider_val(BikeSpeed);
+	Glui->add_statictext("Bike Speed");
+	sliders[6].slider = Glui->add_slider(false, GLUI_HSLIDER_FLOAT, &BikeSpeed);
+	sliders[6].slider->set_float_limits(0.f, 100.f);
+	sliders[6].slider->set_w(500);
+	sliders[6].slider->set_slider_val(BikeSpeed);
+	sliders[6].edit_text = Glui->add_edittext("Meters/Second", GLUI_EDITTEXT_FLOAT, &BikeSpeed);
 	Glui->add_separator();
 
 	panel = Glui->add_panel("Scene Transformation");
@@ -791,7 +810,13 @@ void InitLists( )
 		glVertex3f(-0.25f, 0.f, 1.f);
 		glVertex3f(-0.25f, 1.f, -1.f);
 		glVertex3f(-0.25f, 0.f, -1.f);
-		// TODO: FINISH MAKING THE BIKE SHAPE ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+		glEnd();
+		//Right
+		glBegin(GL_TRIANGLE_STRIP);
+		glVertex3f(0.25f, 1.f, 1.f);
+		glVertex3f(0.25f, 0.f, 1.f);
+		glVertex3f(0.25f, 1.f, -1.f);
+		glVertex3f(0.25f, 0.f, -1.f);
 		glEnd();
 	glEndList();
 
@@ -933,9 +958,9 @@ void Reset( )
 	RotMatrix[3][0] = RotMatrix[3][1] = RotMatrix[3][3] = 0.;
 	RotMatrix[0][0] = RotMatrix[1][1] = RotMatrix[2][2] = RotMatrix[3][3] = 1.;
 
-	AngleIntersection = 69.f * DEG_TO_RAD;
-	LeadingAngle = 19.4f * DEG_TO_RAD;
-	TrailingAngle = 27.1f * DEG_TO_RAD;
+	AngleIntersection = 69.f;
+	LeadingAngle = 19.4f;
+	TrailingAngle = 27.1f;
 
 	CarStart = 100.f;
 	CarSpeed = 18.f;
@@ -1180,16 +1205,19 @@ void HsvRgb( float hsv[3], float rgb[3] )
 //Draw shadow triangle
 void DrawShadow()
 {
+	float lAngle = LeadingAngle * DEG_TO_RAD;
+	float tAngle = TrailingAngle * DEG_TO_RAD;
+	float iAngle = AngleIntersection * DEG_TO_RAD;
 	//CSED = Car Shadow Edge Distance
-	float CSED_Numerator = (CarDistance * sin(AngleIntersection));
-	float CSED_Trail =  CSED_Numerator / sin((M_PI - (TrailingAngle + AngleIntersection))); //Distance from trailing edge of blindspot shadow to car
-	float CSED_Lead = CSED_Numerator / sin((M_PI - (LeadingAngle + AngleIntersection))); //Distance from leading edge blindspot shadow to car
+	float CSED_Numerator = (CarDistance * sin(iAngle));
+	float CSED_Trail =  CSED_Numerator / sin((M_PI - (tAngle + iAngle))); //Distance from trailing edge of blindspot shadow to car
+	float CSED_Lead = CSED_Numerator / sin((M_PI - (lAngle + iAngle))); //Distance from leading edge blindspot shadow to car
 
 	//Cleaning things up so its easier to read the next set of operations
-	float Opp_Lead = sin(LeadingAngle);
-	float Opp_Trail = sin(TrailingAngle);
-	float Adj_Lead = -cos(LeadingAngle);
-	float Adj_Trail = -cos(TrailingAngle);
+	float Opp_Lead = sin(lAngle);
+	float Opp_Trail = sin(tAngle);
+	float Adj_Lead = -cos(lAngle);
+	float Adj_Trail = -cos(tAngle);
 
 	//Draw shadow
 	glColor3f(1.f, 0.f, 0.f);
@@ -1204,8 +1232,10 @@ void DrawShadow()
 void DrawCar(float scaleFactor)
 {
 	//Calculate some trig here to avoid repeat calculations 
-	float leadX = sin(LeadingAngle) * scaleFactor, leadZ = (-cos(LeadingAngle) * scaleFactor);
-	float trailX = sin(TrailingAngle) * scaleFactor, trailZ = (-cos(TrailingAngle) * scaleFactor);
+	float lAngle = LeadingAngle * DEG_TO_RAD;
+	float tAngle = TrailingAngle * DEG_TO_RAD;
+	float leadX = sin(lAngle) * scaleFactor, leadZ = (-cos(lAngle) * scaleFactor);
+	float trailX = sin(tAngle) * scaleFactor, trailZ = (-cos(tAngle) * scaleFactor);
 
 	float length = 4.f;
 	float height = 2.f;
@@ -1275,4 +1305,15 @@ void DrawCar(float scaleFactor)
 		glVertex3f(-trailX, 0.f, leadZ + length);
 		glVertex3f(-trailX, height, leadZ + length);
 		glEnd();
+}
+
+void UpdateGLUI()
+{
+	sliders[0].slider->set_slider_val(AngleIntersection);
+	sliders[1].slider->set_slider_val(LeadingAngle);
+	sliders[2].slider->set_slider_val(TrailingAngle);
+	sliders[3].slider->set_slider_val(CarStart);
+	sliders[4].slider->set_slider_val(CarSpeed);
+	sliders[5].slider->set_slider_val(BikeStart);
+	sliders[6].slider->set_slider_val(BikeSpeed);
 }
