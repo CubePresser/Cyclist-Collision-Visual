@@ -33,13 +33,13 @@ Bike: 39m (128 ft)
 #ifdef WIN32
 #include <windows.h>
 #pragma warning(disable:4996)
-#include "glew.h"
+#include "Dependencies/glew.h"
 #endif
 
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include "freeglut.h"
-#include "glui.h"
+#include "Dependencies/freeglut.h"
+#include "Dependencies/glui.h"
 
 // title of these windows:
 const char *WINDOWTITLE = { "Cyclist Collision Visual - Jonathan Jones" };
@@ -409,8 +409,11 @@ void Display( )
 	// possibly draw the axes:
 	if( AxesOn != 0 )
 	{
+		glPushMatrix();
+		glTranslatef(0.f, 2.f, 0.f);
 		glColor3f(1, 1, 1);
 		glCallList( AxesList );
+		glPopMatrix();
 	}
 
 
@@ -858,7 +861,7 @@ void InitLists( )
 	AxesList = glGenLists( 1 );
 	glNewList( AxesList, GL_COMPILE );
 		glLineWidth( AXES_WIDTH );
-			Axes( 5.0 );
+			Axes( 20.0 );
 		glLineWidth( 1. );
 	glEndList( );
 }
