@@ -186,13 +186,6 @@ struct GLUI_SliderPackage sliders[8];
 void	Animate( );
 void	Buttons( int );
 void	Display( );
-void	DoAxesMenu(int);
-void	DoViewMenu(int);
-void	DoDebugMenu( int );
-void	DoMainMenu( int );
-void	DoRasterString( float, float, float, char * );
-void	DoStrokeString( float, float, float, float, char * );
-float	ElapsedSeconds( );
 void	InitGlui();
 void	InitGraphics( );
 void	InitLists( );
@@ -205,7 +198,6 @@ void	Resize( int, int );
 void	Visibility( int );
 
 void	Axes( float );
-void	HsvRgb( float[3], float [3] );
 
 //Draw car and shadow
 void	DrawShadow();
@@ -279,8 +271,7 @@ void Animate( )
 	glutPostRedisplay( );
 }
 
-void
-Buttons(int id)
+void Buttons(int id)
 {
 	switch (id)
 	{
@@ -464,99 +455,7 @@ void Display( )
 	glFlush( );
 }
 
-
-void DoAxesMenu( int id )
-{
-	AxesOn = id;
-
-	glutSetWindow( MainWindow );
-	glutPostRedisplay( );
-}
-
-void DoViewMenu(int id)
-{
-	ViewType = id;
-
-	glutSetWindow(MainWindow);
-	glutPostRedisplay();
-}
-
-void DoDebugMenu( int id )
-{
-	DebugOn = id;
-
-	glutSetWindow( MainWindow );
-	glutPostRedisplay( );
-}
-
-// main menu callback:
-void DoMainMenu( int id )
-{
-	switch( id )
-	{
-		case RESET:
-			Reset( );
-			break;
-
-		case QUIT:
-			// gracefully close out the graphics:
-			// gracefully close the graphics window:
-			// gracefully exit the program:
-			glutSetWindow( MainWindow );
-			glFinish( );
-			glutDestroyWindow( MainWindow );
-			exit( 0 );
-			break;
-
-		default:
-			fprintf( stderr, "Don't know what to do with Main Menu ID %d\n", id );
-	}
-
-	glutSetWindow( MainWindow );
-	glutPostRedisplay( );
-}
-
-// use glut to display a string of characters using a raster font:
-void DoRasterString( float x, float y, float z, char *s )
-{
-	glRasterPos3f( (GLfloat)x, (GLfloat)y, (GLfloat)z );
-
-	char c;			// one character to print
-	for( ; ( c = *s ) != '\0'; s++ )
-	{
-		glutBitmapCharacter( GLUT_BITMAP_TIMES_ROMAN_24, c );
-	}
-}
-
-
-// use glut to display a string of characters using a stroke font:
-void DoStrokeString( float x, float y, float z, float ht, char *s )
-{
-	glPushMatrix( );
-		glTranslatef( (GLfloat)x, (GLfloat)y, (GLfloat)z );
-		float sf = ht / ( 119.05f + 33.33f );
-		glScalef( (GLfloat)sf, (GLfloat)sf, (GLfloat)sf );
-		char c;			// one character to print
-		for( ; ( c = *s ) != '\0'; s++ )
-		{
-			glutStrokeCharacter( GLUT_STROKE_ROMAN, c );
-		}
-	glPopMatrix( );
-}
-
-
-// return the number of seconds since the start of the program:
-float ElapsedSeconds( )
-{
-	// get # of milliseconds since the start of the program:
-	int ms = glutGet( GLUT_ELAPSED_TIME );
-
-	// convert it to seconds:
-	return (float)ms / 1000.f;
-}
-
-void
-InitGlui(void)
+void InitGlui(void)
 {
 	GLUI_Panel *panel;
 	GLUI_Translation *trans, *scale;
@@ -1172,79 +1071,6 @@ void Axes( float length )
 		}
 	glEnd( );
 
-}
-
-
-// function to convert HSV to RGB
-// 0.  <=  s, v, r, g, b  <=  1.
-// 0.  <= h  <=  360.
-// when this returns, call:
-//		glColor3fv( rgb );
-void HsvRgb( float hsv[3], float rgb[3] )
-{
-	// guarantee valid input:
-	float h = hsv[0] / 60.f;
-	while( h >= 6. )	h -= 6.;
-	while( h <  0. ) 	h += 6.;
-
-	float s = hsv[1];
-	if( s < 0. )
-		s = 0.;
-	if( s > 1. )
-		s = 1.;
-
-	float v = hsv[2];
-	if( v < 0. )
-		v = 0.;
-	if( v > 1. )
-		v = 1.;
-
-	// if sat==0, then is a gray:
-	if( s == 0.0 )
-	{
-		rgb[0] = rgb[1] = rgb[2] = v;
-		return;
-	}
-
-	// get an rgb from the hue itself:
-	float i = floor( h );
-	float f = h - i;
-	float p = v * ( 1.f - s );
-	float q = v * ( 1.f - s*f );
-	float t = v * ( 1.f - ( s * (1.f-f) ) );
-
-	float r, g, b;			// red, green, blue
-	switch( (int) i )
-	{
-		case 0:
-			r = v;	g = t;	b = p;
-			break;
-	
-		case 1:
-			r = q;	g = v;	b = p;
-			break;
-	
-		case 2:
-			r = p;	g = v;	b = t;
-			break;
-	
-		case 3:
-			r = p;	g = q;	b = v;
-			break;
-	
-		case 4:
-			r = t;	g = p;	b = v;
-			break;
-	
-		case 5:
-			r = v;	g = p;	b = q;
-			break;
-	}
-
-
-	rgb[0] = r;
-	rgb[1] = g;
-	rgb[2] = b;
 }
 
 //Draw shadow triangle
