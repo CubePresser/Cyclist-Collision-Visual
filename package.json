@@ -1,0 +1,29 @@
+{
+  "name": "ccv-web-demo",
+  "version": "1.0.0",
+  "description": "F18 - Graphical simulation for research purposes regarding an intersection in England where cyclist-car collisions are frequent. OpenGL, C++",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "parcel ./src/index.html --out-dir ./dev",
+    "build": "parcel build ./src/index.html --public-url ./dist && move-cli ./dist/index.html ./index.html"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonesjonathan/Cyclist-Collision-Visual.git"
+  },
+  "author": "jonesjonathan",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jonesjonathan/Cyclist-Collision-Visual/issues"
+  },
+  "homepage": "https://jonesjonathan.github.io/Cyclist-Collision-Visual",
+  "dependencies": {
+    "three": "^0.103.0",
+    "three-orbitcontrols": "^2.102.1"
+  },
+  "devDependencies": {
+    "move-cli": "^1.2.1",
+    "parcel-bundler": "^1.12.3",
+    "parcel-plugin-clean-dist": "0.0.6"
+  }
+}
