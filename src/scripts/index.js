@@ -12,8 +12,11 @@ import {
     AmbientLight,
     PlaneGeometry,
     RepeatWrapping,
-    Math,
-    Clock
+    Clock,
+    BufferGeometry,
+    Geometry,
+    Vector3,
+    Face3
 } from 'three';
 
 import * as Dat from 'dat.gui';
@@ -32,6 +35,10 @@ const sky = [
     sky_px, sky_nx
 ];
 
+Math.degToRad = function(deg) {
+    return deg * Math.PI / 180;
+}
+
 class Site {
     
     constructor() {
@@ -40,7 +47,7 @@ class Site {
 
         this.scene = new Scene();
         this.camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 4000 );
-        this.camera.position.set(0, 10, 20);
+        this.camera.position.set(0, 100, 200);
 
         const renderer = new WebGLRenderer();
         renderer.setPixelRatio(window.devicePixelRatio);
@@ -67,7 +74,7 @@ class Site {
         if(this.exteriorView) {
             this.controls.enabled = true;
             this.controls.target.set(0, 0, 0);
-            this.camera.position.set(0, 10, 20);
+            this.camera.position.set(0, 100, 200);
         } else {
             this.controls.enabled = false;
         }
@@ -91,6 +98,41 @@ class Site {
         if(!this.isActive) {
             this.car.position.z = start;
         }
+    }
+
+    _updateBlindspot() {
+        const lead = this.blindspotLeadingAngle;
+        const trail = this.blindspotTrailingAngle;
+        const carDistance = this.car.position.z;
+        const angle_difference = 180 - this.angleOfIntersection;
+
+        //Issues occur when leading angle or trailing angle are equal to 180 - AngleIntersection
+        //At this point, the distance values become unpredictable and large
+        const lAngle = Math.degToRad(lead);
+        const tAngle = Math.degToRad(trail);
+        const iAngle = Math.degToRad(this.angleOfIntersection);
+
+        //CSED = Car Shadow Edge Distance
+        const CSED_Numerator = (carDistance * Math.sin(iAngle));
+        let CSED_Trail =  CSED_Numerator / Math.sin((Math.PI - (tAngle + iAngle))); //Distance from trailing edge of blindspot shadow to car
+        const CSED_Lead = CSED_Numerator / Math.sin((Math.PI - (lAngle + iAngle))); //Distance from leading edge blindspot shadow to car
+
+        if (angle_difference < trail)
+        {
+            CSED_Trail = 100000; //Fixed distance on trailing edge of shadow to prevent visual issues when there is no intersection between the road and the trailing edge
+        }
+
+        //Cleaning things up so its easier to read the next set of operations
+        const Opp_Lead = Math.sin(lAngle);
+        const Opp_Trail = Math.sin(tAngle);
+        const Adj_Lead = -Math.cos(lAngle);
+        const Adj_Trail = -Math.cos(tAngle);
+
+        //Update blindspot vertices
+        this.blindspot.geometry.vertices[0].set(0, .1, carDistance);
+        this.blindspot.geometry.vertices[1].set(CSED_Trail * Opp_Trail, .1, (CSED_Trail * Adj_Trail) + carDistance);
+        this.blindspot.geometry.vertices[2].set(CSED_Lead * Opp_Lead, .1, (CSED_Lead * Adj_Lead) + carDistance);
+        this.blindspot.geometry.verticesNeedUpdate = true;
     }
 
     _replay() {
@@ -241,6 +283,21 @@ class Site {
         this.car = car;
         this.scene.add(car);
 
+        //Blindspot
+        const gBlindspot = new Geometry();
+        gBlindspot.vertices.push(
+            new Vector3(0, 0.1, 0), //Origin
+            new Vector3(0, 0.1, 0), //Leading
+            new Vector3(0, 0.1, 0), //Trailing
+        );
+        gBlindspot.faces.push(
+            new Face3(0, 1, 2)
+        );
+        const mBlindspot = new MeshBasicMaterial({color : 0xff0000});
+        const blindspot = new Mesh(gBlindspot, mBlindspot);
+        this.blindspot = blindspot;
+        this.scene.add(blindspot);
+
     }
 
     build() {
@@ -266,6 +323,8 @@ class Site {
         const delta = this.clock.getDelta();
 
         if(this.car.position.z > 0) this.car.position.z -= delta * this.carSpeed;
+
+        this._updateBlindspot()
 
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
