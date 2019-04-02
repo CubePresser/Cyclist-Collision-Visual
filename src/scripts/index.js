@@ -86,9 +86,10 @@ class Site {
     }
 
     _updateRoad(angle) {
+        const rad = Math.degToRad(angle);
         this.road.rotation.set(
             this.road.rotation.x,
-            Math.degToRad(angle),
+            rad,
             this.road.rotation.z
         );
     }
@@ -97,6 +98,12 @@ class Site {
         // Ensure that start position cannot be changed when car is moving
         if(!this.isActive) {
             this.car.position.z = start;
+        }
+    }
+
+    _updateBike(start) {
+        if(!this.isActive) {
+            this.bike.position.z = start;
         }
     }
 
@@ -137,6 +144,7 @@ class Site {
 
     _replay() {
         this.car.position.z = this.carStartDistance;
+        this.bike.position.z = this.bikeStartDistance;
 
         this.isActive = false;
         this.clock.stop();
@@ -189,7 +197,7 @@ class Site {
         uiCar.add(this, 'carSpeed', 0, 100).step(0.1).name('Car Speed');
 
         const uiBike = this.GUI.addFolder('Bike');
-        uiBike.add(this, 'bikeStartDistance', 0, 1000).step(0.1).name('Bike Starting Distance');
+        uiBike.add(this, 'bikeStartDistance', 0, 1000).step(0.1).name('Bike Starting Distance').onChange(this._updateBike.bind(this));
         uiBike.add(this, 'bikeSpeed', 0, 100).step(0.1).name('Bike Speed');
 
         this.GUI.add(this, '_reset').name('Reset');
@@ -275,13 +283,21 @@ class Site {
         this.road = bRoad;
         this.scene.add(bRoad);
 
-        const gCar = new BoxGeometry(1.5, 2.0, 4.0);
+        const gCar = new BoxGeometry(2.0, 2.0, 4.0);
         const mCar = new MeshPhongMaterial({color : 0xffffff});
         const car = new Mesh(gCar, mCar);
         car.castShadow = true;
         car.position.set(0.0, 1.05, this.carStartDistance);
         this.car = car;
         this.scene.add(car);
+
+        const gBike = new BoxGeometry(0.5, 1, 2);
+        const mBike = new MeshPhongMaterial({color : 0xffffff});
+        const bike = new Mesh(gBike, mBike);
+        bike.castShadow = true;
+        bike.position.set(0.0, 0.55, this.bikeStartDistance);
+        this.bike = bike;
+        bRoad.add(bike);
 
         //Blindspot
         const gBlindspot = new Geometry();
@@ -323,6 +339,7 @@ class Site {
         const delta = this.clock.getDelta();
 
         if(this.car.position.z > 0) this.car.position.z -= delta * this.carSpeed;
+        if(this.bike.position.z > 0) this.bike.position.z -= delta * this.bikeSpeed;
 
         this._updateBlindspot()
 
