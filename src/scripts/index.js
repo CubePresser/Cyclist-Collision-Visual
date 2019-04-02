@@ -12,7 +12,8 @@ import {
     AmbientLight,
     PlaneGeometry,
     RepeatWrapping,
-    Math
+    Math,
+    Clock
 } from 'three';
 
 import * as Dat from 'dat.gui';
@@ -35,6 +36,7 @@ class Site {
     
     constructor() {
         this.isActive = false;
+        this.clock = new Clock(false);
 
         this.scene = new Scene();
         this.camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 4000 );
@@ -43,15 +45,6 @@ class Site {
         const renderer = new WebGLRenderer();
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMapSoft = true;
-        renderer.shadowCameraNear = 3;
-        renderer.shadowCameraFar = this.camera.far;
-        renderer.shadowCameraFov = 50;
-        renderer.shadowMapBias = 0.0039;
-        renderer.shadowMapDarkness = 0.5;
-        renderer.shadowMapWidth = 1024;
-        renderer.shadowMapHeight = 1024;
         document.body.appendChild(renderer.domElement);
         this.renderer = renderer;
 
@@ -64,7 +57,7 @@ class Site {
 
         this._initGUI();
 
-        this._animate = this._animate.bind(this);
+        this.animate = this.animate.bind(this);
         this._onWindowResize = this._onWindowResize.bind(this);
 
         window.addEventListener('resize', this._onWindowResize);
@@ -93,12 +86,29 @@ class Site {
         );
     }
 
+    _updateCar(start) {
+        // Ensure that start position cannot be changed when car is moving
+        if(!this.isActive) {
+            this.car.position.z = start;
+        }
+    }
+
+    _replay() {
+        this.car.position.z = this.carStartDistance;
+
+        this.isActive = false;
+        this.clock.stop();
+        this.GUI.__controllers[2].name('Play');
+
+        this.GUI.updateDisplay();
+    }
+
     _reset() {
         this._setUIElements();
         this._updateView();
         this._updateFov(this.fov)
         this._updateRoad(this.angleOfIntersection);
-        this.GUI.updateDisplay();
+        this._replay();
     }
 
     _setUIElements() {
@@ -133,16 +143,17 @@ class Site {
         uiBlindspot.add(this, 'blindspotTrailingAngle', 0, 45).step(0.1).name('Blindspot Trailing Angle');
 
         const uiCar = this.GUI.addFolder('Car');
-        uiCar.add(this, 'carStartDistance', 0, 1000).step(0.1).name('Car Starting Distance');
+        uiCar.add(this, 'carStartDistance', 0, 1000).step(0.1).name('Car Starting Distance').onChange(this._updateCar.bind(this));
         uiCar.add(this, 'carSpeed', 0, 100).step(0.1).name('Car Speed');
 
         const uiBike = this.GUI.addFolder('Bike');
         uiBike.add(this, 'bikeStartDistance', 0, 1000).step(0.1).name('Bike Starting Distance');
         uiBike.add(this, 'bikeSpeed', 0, 100).step(0.1).name('Bike Speed');
 
-        this.GUI.add(this, '_reset').name('Reset Scene');
-        this.GUI.add(this, 'run').name('Pause').onFinishChange((val) => {
-            const controller = this.GUI.__controllers[1];
+        this.GUI.add(this, '_reset').name('Reset');
+        this.GUI.add(this, '_replay').name('Replay');
+        this.GUI.add(this, 'run').name('Play').onFinishChange((val) => {
+            const controller = this.GUI.__controllers[2];
             if(this.isActive) controller.name('Pause');
             else controller.name('Play');
         });
@@ -242,15 +253,22 @@ class Site {
 
     run() {
         this.isActive = !this.isActive;
-        if(this.isActive) this._animate();
+        if(this.isActive) {
+            this.clock.start();
+        } else {
+            this.clock.stop();
+        }
     }
 
-    _animate(timestamp) {
-        if(this.isActive) {
-            requestAnimationFrame(this._animate);
-            this.controls.update();
-            this.renderer.render(this.scene, this.camera);
-        }
+    animate() {
+        requestAnimationFrame(this.animate);
+
+        const delta = this.clock.getDelta();
+
+        if(this.car.position.z > 0) this.car.position.z -= delta * this.carSpeed;
+
+        this.controls.update();
+        this.renderer.render(this.scene, this.camera);
     }
 
     _onWindowResize() {
@@ -264,5 +282,5 @@ class Site {
 
 const site = new Site();
 site.build().then(() => {
-    site.run();
+    site.animate();
 });
