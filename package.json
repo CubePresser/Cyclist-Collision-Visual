@@ -18,6 +18,7 @@
   },
   "homepage": "https://jonesjonathan.github.io/Cyclist-Collision-Visual",
   "dependencies": {
+    "dat.gui": "^0.7.6",
     "three": "^0.103.0",
     "three-orbitcontrols": "^2.102.1"
   },
