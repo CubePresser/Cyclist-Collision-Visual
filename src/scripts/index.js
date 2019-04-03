@@ -70,13 +70,19 @@ class Site {
         window.addEventListener('resize', this._onWindowResize);
     }
 
-    _updateView() {
-        if(this.exteriorView) {
-            this.controls.enabled = true;
-            this.controls.target.set(0, 0, 0);
-            this.camera.position.set(0, 100, 200);
-        } else {
-            this.controls.enabled = false;
+    _updateView(view) {
+        switch(view) {
+            case 'freecam':
+                this.focus = 'freecam';
+                break;
+            case 'car':
+                this.focus = 'car';
+                break;
+            case 'bike':
+                this.focus = 'bike';
+                break;
+            default:
+                break;
         }
     }
 
@@ -162,8 +168,7 @@ class Site {
     }
 
     _setUIElements() {
-        this.exteriorView = true;
-
+        this.focus = 'freecam';
         this.fov = 75;
         this.camera.fov = this.fov;
 
@@ -182,7 +187,15 @@ class Site {
         this.GUI = new Dat.GUI({width : 340, hideable : true});
 
         const uiCamera = this.GUI.addFolder('Camera');
-        uiCamera.add(this, 'exteriorView').name('Exterior View').onFinishChange(this._updateView.bind(this));
+        uiCamera.add(this, '_updateView').name('Freecam').onFinishChange(() => {
+            this._updateView('freecam');
+        });
+        uiCamera.add(this, '_updateView').name('Focus Car').onFinishChange(() => {
+            this._updateView('car');
+        });
+        uiCamera.add(this, '_updateView').name('Focus Bike').onFinishChange(() => {
+            this._updateView('bike');
+        });
         uiCamera.add(this, 'fov', 0.1, 179.9).step(0.1).onChange(this._updateFov.bind(this));
 
         const uiRoad = this.GUI.addFolder('Road');
@@ -337,6 +350,23 @@ class Site {
         requestAnimationFrame(this.animate);
 
         const delta = this.clock.getDelta();
+
+        //Check view type
+        switch(this.focus) {
+            case 'freecam':
+                this.controls.enablePan = true;
+                break;
+            case 'car':
+                this.controls.enablePan = false;
+                this.controls.target.copy(this.car.position);
+                break;
+            case 'bike':
+                this.controls.enablePan = false;
+                this.controls.target.copy(this.bike.getWorldPosition());
+                break;
+            default:
+                break;
+        }
 
         if(this.car.position.z > 0) this.car.position.z -= delta * this.carSpeed;
         if(this.bike.position.z > 0) this.bike.position.z -= delta * this.bikeSpeed;
