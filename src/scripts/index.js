@@ -160,6 +160,9 @@ class Site {
     }
 
     _reset() {
+        this.camera.position.set(0, 100, 200);
+        this.controls.target.set(0, 0, 0);
+
         this._setUIElements();
         this._updateView();
         this._updateFov(this.fov)
@@ -171,6 +174,8 @@ class Site {
         this.focus = 'freecam';
         this.fov = 75;
         this.camera.fov = this.fov;
+
+        this.timeScale = 1;
 
         this.angleOfIntersection = 69;
         this.blindspotLeadingAngle = 19.4;
@@ -220,6 +225,7 @@ class Site {
             if(this.isActive) controller.name('Pause');
             else controller.name('Play');
         });
+        this.GUI.add(this, 'timeScale', 0, 2).step(0.1).name('Time Scale');
 
         this.GUI.updateDisplay();
     }
@@ -349,7 +355,9 @@ class Site {
     animate() {
         requestAnimationFrame(this.animate);
 
-        const delta = this.clock.getDelta();
+        const delta = this.clock.getDelta() * this.timeScale;
+        const carDelta = delta * this.carSpeed;
+        const bikeDelta = delta * this.bikeSpeed;
 
         //Check view type
         switch(this.focus) {
@@ -358,18 +366,20 @@ class Site {
                 break;
             case 'car':
                 this.controls.enablePan = false;
-                this.controls.target.copy(this.car.position);
+                this.controls.target.copy(this.car.getWorldPosition());
+                if(this.car.position.z > 0) this.camera.position.z -= carDelta;
                 break;
             case 'bike':
                 this.controls.enablePan = false;
                 this.controls.target.copy(this.bike.getWorldPosition());
+                if(this.bike.position.z > 0) this.camera.position.z -= bikeDelta;
                 break;
             default:
                 break;
         }
 
-        if(this.car.position.z > 0) this.car.position.z -= delta * this.carSpeed;
-        if(this.bike.position.z > 0) this.bike.position.z -= delta * this.bikeSpeed;
+        if(this.car.position.z > 0) this.car.position.z -= carDelta;
+        if(this.bike.position.z > 0) this.bike.position.z -= bikeDelta;
 
         this._updateBlindspot()
 
