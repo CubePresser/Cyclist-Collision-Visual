@@ -211,10 +211,16 @@ class Site {
         uiBlindspot.add(this, 'blindspotTrailingAngle', 0, 45).step(0.1).name('Blindspot Trailing Angle');
 
         const uiCar = this.GUI.addFolder('Car');
+        uiCar.add(this, '_updateView').name('Focus Car').onFinishChange(() => {
+            this._updateView('car');
+        });
         uiCar.add(this, 'carStartDistance', 0, 1000).step(0.1).name('Car Starting Distance').onChange(this._updateCar.bind(this));
         uiCar.add(this, 'carSpeed', 0, 100).step(0.1).name('Car Speed');
 
         const uiBike = this.GUI.addFolder('Bike');
+        uiBike.add(this, '_updateView').name('Focus Bike').onFinishChange(() => {
+            this._updateView('bike');
+        });
         uiBike.add(this, 'bikeStartDistance', 0, 1000).step(0.1).name('Bike Starting Distance').onChange(this._updateBike.bind(this));
         uiBike.add(this, 'bikeSpeed', 0, 100).step(0.1).name('Bike Speed');
 
@@ -359,6 +365,13 @@ class Site {
         const carDelta = delta * this.carSpeed;
         const bikeDelta = delta * this.bikeSpeed;
 
+        const vBike0 = this.bike.getWorldPosition(new Vector3());
+
+        if(this.car.position.z > 0) this.car.position.z -= carDelta;
+        if(this.bike.position.z > 0) this.bike.position.z -= bikeDelta;
+
+        const vBike1 = this.bike.getWorldPosition(new Vector3());
+
         //Check view type
         switch(this.focus) {
             case 'freecam':
@@ -366,20 +379,17 @@ class Site {
                 break;
             case 'car':
                 this.controls.enablePan = false;
-                this.controls.target.copy(this.car.getWorldPosition());
+                this.controls.target.copy(this.car.getWorldPosition(new Vector3()));
                 if(this.car.position.z > 0) this.camera.position.z -= carDelta;
                 break;
             case 'bike':
                 this.controls.enablePan = false;
-                this.controls.target.copy(this.bike.getWorldPosition());
-                if(this.bike.position.z > 0) this.camera.position.z -= bikeDelta;
+                this.controls.target.copy(vBike1);
+                if(this.bike.position.z > 0) this.camera.position.add(vBike1.sub(vBike0));
                 break;
             default:
                 break;
         }
-
-        if(this.car.position.z > 0) this.car.position.z -= carDelta;
-        if(this.bike.position.z > 0) this.bike.position.z -= bikeDelta;
 
         this._updateBlindspot()
 
